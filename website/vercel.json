@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    { "source": "/install.sh", "destination": "/install.sh" },
+    { "source": "/install.ps1", "destination": "/install.ps1" }
+  ],
+  "headers": [
+    {
+      "source": "/install.sh",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/install.ps1",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    }
+  ]
+}

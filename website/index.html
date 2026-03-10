@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VexNet - Autonomous AI Agent</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #13131a;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --muted: #8888a0;
+            --accent: #7c5cfc;
+            --accent2: #5c9cfc;
+            --green: #4cda6a;
+            --code-bg: #1a1a28;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+        /* ── Nav ── */
+        nav {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 0;
+        }
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .logo span { color: var(--text); }
+        nav a {
+            color: var(--muted);
+            text-decoration: none;
+            margin-left: 24px;
+            font-size: 0.95rem;
+        }
+        nav a:hover { color: var(--text); }
+
+        /* ── Hero ── */
+        .hero {
+            text-align: center;
+            padding: 80px 0 60px;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 20px;
+        }
+        .hero h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--muted);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+
+        /* ── Install box ── */
+        .install-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 650px;
+            margin: 0 auto 60px;
+        }
+        .install-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: var(--muted);
+            border-bottom: 2px solid transparent;
+            font-size: 0.95rem;
+            background: none;
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            font-family: inherit;
+        }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .code-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 16px 20px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            position: relative;
+            margin-bottom: 12px;
+        }
+        .code-block .comment { color: var(--muted); }
+        .code-block .cmd { color: var(--green); }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--border);
+            border: none;
+            color: var(--muted);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .copy-btn:hover { color: var(--text); }
+
+        .note {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        /* ── Features ── */
+        .features {
+            padding: 60px 0;
+        }
+        .features h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+        }
+        .feature {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+        }
+        .feature h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--accent2);
+        }
+        .feature p {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        /* ── Setup Guide ── */
+        .setup {
+            padding: 60px 0;
+        }
+        .setup h2 {
+            font-size: 2rem;
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px 28px;
+            margin-bottom: 16px;
+        }
+        .step-num {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-right: 12px;
+        }
+        .step h3 {
+            display: inline;
+            font-size: 1.05rem;
+        }
+        .step p, .step ul {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            padding-left: 40px;
+        }
+        .step ul { list-style: disc; }
+        .step li { margin-bottom: 6px; }
+
+        /* ── Footer ── */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 30px 0;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 2rem; }
+            .hero p { font-size: 1rem; }
+            .install-box { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="container">
+        <a href="#" class="logo">Vex<span>Net</span></a>
+        <div>
+            <a href="#install">Install</a>
+            <a href="#features">Features</a>
+            <a href="#setup">Setup</a>
+            <a href="https://github.com/vexnet/vex">GitHub</a>
+        </div>
+    </div>
+</nav>
+
+<section class="hero">
+    <div class="container">
+        <h1>Your <span class="gradient">Autonomous AI Agent</span></h1>
+        <p>
+            VexNet is an AI agent that reads, writes, searches, browses, and builds other agents.
+            Runs locally with Ollama. Chat via CLI or Telegram. No cloud required.
+        </p>
+    </div>
+</section>
+
+<section id="install">
+    <div class="container">
+        <div class="install-box">
+            <div class="install-tabs">
+                <button class="tab active" onclick="switchTab('mac')">macOS / Linux</button>
+                <button class="tab" onclick="switchTab('win')">Windows</button>
+                <button class="tab" onclick="switchTab('pip')">pip</button>
+            </div>
+
+            <div id="tab-mac" class="tab-content active">
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <span class="cmd">curl -fsSL https://vexnet.ai/install.sh | bash</span>
+                </div>
+                <p class="note">Installs Python (if needed), Ollama, AI models, and VexNet. Takes 2-5 minutes.</p>
+            </div>
+
+            <div id="tab-win" class="tab-content">
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <span class="cmd">irm https://vexnet.ai/install.ps1 | iex</span>
+                </div>
+                <p class="note">Run in PowerShell as Administrator. Installs Ollama, AI models, and VexNet.</p>
+            </div>
+
+            <div id="tab-pip" class="tab-content">
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <span class="comment"># Requires Python 3.12+ and Ollama already installed</span><br>
+                    <span class="cmd">pip install vexnet</span>
+                </div>
+                <p class="note">Manual install. You'll need to set up Ollama separately (see setup guide below).</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="features" class="features">
+    <div class="container">
+        <h2>What Vex Can Do</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <h3>Read, Write & Edit Code</h3>
+                <p>Explore codebases, write new files, make precise edits. Understands project structure and conventions.</p>
+            </div>
+            <div class="feature">
+                <h3>Run Commands</h3>
+                <p>Execute shell commands, run tests, build projects. Graduated security controls so you stay in charge.</p>
+            </div>
+            <div class="feature">
+                <h3>Search the Web</h3>
+                <p>Web search, fetch pages, and full browser control via headless Chromium for complex research tasks.</p>
+            </div>
+            <div class="feature">
+                <h3>Build Sub-Agents</h3>
+                <p>Dynamically creates specialist agents for complex tasks. A scraper agent, a docs agent, a test agent &mdash; on demand.</p>
+            </div>
+            <div class="feature">
+                <h3>Telegram Integration</h3>
+                <p>Chat with Vex from your phone. Group monitoring with intelligent interjections. Persistent conversation memory.</p>
+            </div>
+            <div class="feature">
+                <h3>Runs 100% Local</h3>
+                <p>Uses Ollama for local AI. Your data never leaves your machine. No API keys needed to get started.</p>
+            </div>
+            <div class="feature">
+                <h3>Personality & Memory</h3>
+                <p>Vex has a unique personality that evolves over time. Remembers users, learns preferences, and grows curious about you.</p>
+            </div>
+            <div class="feature">
+                <h3>Security First</h3>
+                <p>4-level autonomy system, secret redaction, prompt injection detection, workspace sandboxing, and full audit logs.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="setup" class="setup">
+    <div class="container">
+        <h2>Setup Guide</h2>
+
+        <div class="step">
+            <span class="step-num">1</span>
+            <h3>Install Ollama</h3>
+            <p>
+                Ollama runs AI models locally on your machine. The installer handles this automatically,
+                but if you need to install manually:
+            </p>
+            <ul>
+                <li><strong>macOS/Linux:</strong> <code>curl -fsSL https://ollama.com/install.sh | sh</code></li>
+                <li><strong>Windows:</strong> Download from <a href="https://ollama.com/download" style="color:var(--accent2)">ollama.com/download</a></li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <span class="step-num">2</span>
+            <h3>Pull AI Models</h3>
+            <p>VexNet needs a language model and an embedding model:</p>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="cmd">ollama pull glm4:latest</span><br>
+                <span class="cmd">ollama pull nomic-embed-text:latest</span>
+            </div>
+            <p style="margin-top:12px">
+                You can use any Ollama model. Popular alternatives:
+                <code>llama3.2</code>, <code>mistral</code>, <code>qwen2.5</code>.
+                Update the model name in your config file after installing.
+            </p>
+        </div>
+
+        <div class="step">
+            <span class="step-num">3</span>
+            <h3>Install VexNet</h3>
+            <p>Use the one-line installer above, or install with pip:</p>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="cmd">pip install vexnet</span>
+            </div>
+        </div>
+
+        <div class="step">
+            <span class="step-num">4</span>
+            <h3>Start Chatting</h3>
+            <p>Open a terminal and run:</p>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="cmd">vex</span>
+            </div>
+            <p style="margin-top:12px">That's it! Vex will launch an interactive session. Type a task and watch it work.</p>
+        </div>
+
+        <div class="step">
+            <span class="step-num">5</span>
+            <h3>Telegram Bot (Optional)</h3>
+            <p>Chat with Vex from your phone:</p>
+            <ul>
+                <li>Open Telegram and message <strong>@BotFather</strong></li>
+                <li>Send <code>/newbot</code> and follow the prompts to create your bot</li>
+                <li>Copy the bot token</li>
+                <li>Set the token: <code>export TELEGRAM_BOT_TOKEN=your_token_here</code></li>
+                <li>Start: <code>vex --telegram</code></li>
+                <li>Message your bot on Telegram!</li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <span class="step-num">6</span>
+            <h3>Configuration</h3>
+            <p>
+                VexNet looks for config in <code>./vex.toml</code> or <code>~/.vex/config.toml</code>.
+                Key settings:
+            </p>
+            <ul>
+                <li><strong>LLM provider:</strong> Switch between ollama, anthropic, or openai</li>
+                <li><strong>Model:</strong> Any Ollama model or cloud API model</li>
+                <li><strong>Autonomy level:</strong> 0 (ask everything) to 3 (full auto)</li>
+                <li><strong>Telegram:</strong> Bot token, allowed users, group settings</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<footer>
+    <div class="container">
+        VexNet &copy; 2026 &mdash; Open source autonomous AI agent
+    </div>
+</footer>
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+    const tabs = { mac: 0, win: 1, pip: 2 };
+    document.querySelectorAll('.tab')[tabs[tab]].classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+function copyCode(btn) {
+    const block = btn.parentElement;
+    const text = block.textContent.replace('Copy', '').trim();
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
+    });
+}
+
+// Auto-detect OS
+if (navigator.platform.startsWith('Win')) switchTab('win');
+</script>
+
+</body>
+</html>

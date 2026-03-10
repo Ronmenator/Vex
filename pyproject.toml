@@ -1,0 +1,56 @@
+[project]
+name = "vexnet"
+version = "0.1.0"
+description = "Autonomous AI agent that reads, writes, searches, browses, and builds other agents. Runs locally with Ollama."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+keywords = ["ai", "agent", "autonomous", "ollama", "telegram", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "anthropic>=0.40",
+    "openai>=1.50",
+    "rich>=13.0",
+    "prompt-toolkit>=3.0",
+    "httpx>=0.27",
+    "python-telegram-bot>=21.0",
+    "playwright>=1.40",
+    "cryptography>=42.0",
+    "websockets>=13.0",
+    "starlette>=0.40",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+vex = "vex.cli.app:main"
+vex-telegram = "vex.telegram.bot:main"
+
+[project.urls]
+Homepage = "https://vexnet.ai"
+Repository = "https://github.com/vexnet/vex"
+Issues = "https://github.com/vexnet/vex/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vex"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]

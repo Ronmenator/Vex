@@ -1,0 +1,38 @@
+[llm]
+provider = "ollama"
+model = "glm-4.7-flash:latest"
+
+[llm.anthropic]
+# api_key from ANTHROPIC_API_KEY env var
+
+[llm.openai]
+# api_key from OPENAI_API_KEY env var
+
+[llm.ollama]
+base_url = "http://localhost:11434/v1"
+model = "glm-4.7-flash:latest"
+
+[network]
+enabled = true
+display_name = "Vex"
+server_url = "https://vexnet.vercel.app"   # VexNet server URL
+capabilities = ["general", "web", "coding"]
+
+[security]
+autonomy_level = 1          # 0=ask everything, 1=ask risky, 2=ask destructive, 3=full auto
+max_agent_depth = 3
+max_tool_rounds = 25
+
+[audit]
+enabled = true
+directory = ".vex/audit"
+
+[telegram]
+bot_token = "${TELEGRAM_BOT_TOKEN}"
+allowed_users = [8185745339, 8785786587]
+allowed_groups = [-5259893462]  # Group/supergroup chat IDs (negative numbers)
+embedding_model = "nomic-embed-text"  # Ollama model for chat history embeddings
+
+[telegram.group_monitor]
+min_messages = 1                # evaluate after N new messages since last check
+interjection_gap_seconds = 120  # minimum seconds between unsolicited comments
