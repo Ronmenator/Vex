@@ -1,8 +1,9 @@
 [llm]
-provider = "openai"
+provider = "ollama"
 
 [llm.anthropic]
 # api_key from ANTHROPIC_API_KEY env var
+model="claude-opus-4-6"
 
 [llm.openai]
 # api_key from OPENAI_API_KEY env var
