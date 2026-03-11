@@ -309,6 +309,7 @@
             <a href="#features">Features</a>
             <a href="#hub">Hub</a>
             <a href="#setup">Setup</a>
+            <a href="/docs.html">Docs</a>
             <a href="https://github.com/ronmenator/vex">GitHub</a>
         </div>
     </div>
@@ -328,9 +329,9 @@
     <div class="container">
         <div class="install-box">
             <div class="install-tabs">
-                <button class="tab active" onclick="switchTab('mac')">macOS / Linux</button>
-                <button class="tab" onclick="switchTab('win')">Windows</button>
-                <button class="tab" onclick="switchTab('pip')">pip</button>
+                <button type="button" class="tab active" onclick="switchTab('mac')">macOS / Linux</button>
+                <button type="button" class="tab" onclick="switchTab('win')">Windows</button>
+                <button type="button" class="tab" onclick="switchTab('pip')">pip</button>
             </div>
 
             <div id="tab-mac" class="tab-content active">
@@ -339,6 +340,11 @@
                     <span class="cmd">curl -fsSL https://vexnet.ai/install.sh | bash</span>
                 </div>
                 <p class="note">Installs Python (if needed), Ollama, AI models, and VexNet. Takes 2-5 minutes.</p>
+                <p class="note" style="margin-top: 20px; color: var(--muted);">To uninstall:</p>
+                <div class="code-block" style="margin-top: 6px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <span class="cmd">curl -fsSL https://vexnet.ai/uninstall.sh | bash</span>
+                </div>
             </div>
 
             <div id="tab-win" class="tab-content">
@@ -347,6 +353,11 @@
                     <span class="cmd">irm https://vexnet.ai/install.ps1 | iex</span>
                 </div>
                 <p class="note">Run in PowerShell as Administrator. Installs Ollama, AI models, and VexNet.</p>
+                <p class="note" style="margin-top: 20px; color: var(--muted);">To uninstall:</p>
+                <div class="code-block" style="margin-top: 6px;">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <span class="cmd">irm https://vexnet.ai/uninstall.ps1 | iex</span>
+                </div>
             </div>
 
             <div id="tab-pip" class="tab-content">
@@ -357,6 +368,7 @@
                 </div>
                 <p class="note">Manual install. You'll need to set up Ollama separately (see setup guide below).</p>
             </div>
+
         </div>
     </div>
 </section>
@@ -517,7 +529,7 @@
                 <li>Open Telegram and message <strong>@BotFather</strong></li>
                 <li>Send <code>/newbot</code> and follow the prompts to create your bot</li>
                 <li>Copy the bot token</li>
-                <li>Set the token: <code>export TELEGRAM_BOT_TOKEN=your_token_here</code></li>
+                <li>Set the token: <code>vex configure set telegram.bot_token YOUR_TOKEN</code></li>
                 <li>Start: <code>vex --telegram</code></li>
                 <li>Message your bot on Telegram!</li>
             </ul>
@@ -527,15 +539,19 @@
             <span class="step-num">6</span>
             <h3>Configuration</h3>
             <p>
-                VexNet looks for config in <code>./vex.toml</code> or <code>~/.vex/config.toml</code>.
-                Key settings:
+                Use <code>vex configure</code> to manage settings, or edit <code>~/.vex/config.toml</code> directly.
             </p>
-            <ul>
-                <li><strong>LLM provider:</strong> Switch between ollama, anthropic, or openai</li>
-                <li><strong>Model:</strong> Any Ollama model or cloud API model</li>
-                <li><strong>Autonomy level:</strong> 0 (ask everything) to 3 (full auto)</li>
-                <li><strong>Telegram:</strong> Bot token, allowed users, group settings</li>
-            </ul>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="comment"># View a setting</span><br>
+                <span class="cmd">vex configure get llm.provider</span><br><br>
+                <span class="comment"># Switch to Anthropic</span><br>
+                <span class="cmd">vex configure set llm.provider anthropic</span><br>
+                <span class="cmd">vex configure set llm.anthropic.api_key YOUR_KEY</span><br><br>
+                <span class="comment"># Change autonomy level (0=ask all, 3=full auto)</span><br>
+                <span class="cmd">vex configure set security.autonomy_level 2</span><br><br>
+                <span class="comment"># Show config file path</span><br>
+                <span class="cmd">vex configure path</span>
+            </div>
         </div>
     </div>
 </section>
@@ -558,7 +574,7 @@ function switchTab(tab) {
 
 function copyCode(btn) {
     const block = btn.parentElement;
-    const text = block.textContent.replace('Copy', '').trim();
+    const text = block.textContent.replace('Copy', '').replace('Copied!', '').trim();
     navigator.clipboard.writeText(text).then(() => {
         btn.textContent = 'Copied!';
         setTimeout(() => btn.textContent = 'Copy', 2000);

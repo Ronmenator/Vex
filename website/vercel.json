@@ -1,7 +1,9 @@
 {
   "rewrites": [
     { "source": "/install.sh", "destination": "/install.sh" },
-    { "source": "/install.ps1", "destination": "/install.ps1" }
+    { "source": "/install.ps1", "destination": "/install.ps1" },
+    { "source": "/uninstall.sh", "destination": "/uninstall.sh" },
+    { "source": "/uninstall.ps1", "destination": "/uninstall.ps1" }
   ],
   "headers": [
     {
@@ -12,6 +14,18 @@
     },
     {
       "source": "/install.ps1",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/uninstall.sh",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/uninstall.ps1",
       "headers": [
         { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
       ]

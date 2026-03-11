@@ -236,15 +236,17 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Quick start:" -ForegroundColor Cyan
 Write-Host "    vex                    Start the interactive agent" -ForegroundColor White
-Write-Host "    vex-telegram           Start the Telegram bot" -ForegroundColor White
+Write-Host "    vex --telegram         Start the Telegram bot" -ForegroundColor White
 Write-Host ""
 Write-Host "  Configuration:" -ForegroundColor Cyan
-Write-Host "    Config file: $configFile" -ForegroundColor White
+Write-Host "    Config file:  $configFile" -ForegroundColor White
+Write-Host "    View a value: vex configure get llm.provider" -ForegroundColor White
+Write-Host "    Set a value:  vex configure set llm.provider anthropic" -ForegroundColor White
 Write-Host ""
 Write-Host "  Telegram setup:" -ForegroundColor Cyan
 Write-Host "    1. Create a bot via @BotFather on Telegram" -ForegroundColor White
-Write-Host "    2. Set TELEGRAM_BOT_TOKEN=your_token" -ForegroundColor White
-Write-Host "    3. Run: vex-telegram" -ForegroundColor White
+Write-Host "    2. vex configure set telegram.bot_token YOUR_TOKEN" -ForegroundColor White
+Write-Host "    3. vex --telegram" -ForegroundColor White
 Write-Host ""
 Write-Host "  You may need to restart your terminal for PATH changes." -ForegroundColor Yellow
 Write-Host ""
