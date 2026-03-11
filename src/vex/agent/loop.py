@@ -6,6 +6,7 @@ feeds results back, and repeats until the LLM produces a final text response.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -89,9 +90,15 @@ class AgentLoop:
         self._prompt_enhancers = prompt_enhancers or []
 
     async def run(
-        self, user_message: str, conversation: Conversation
+        self,
+        user_message: str,
+        conversation: Conversation,
+        cancel_event: asyncio.Event | None = None,
     ) -> AsyncIterator[StreamEvent | ToolCallEvent]:  # type: ignore[return]
-        """Execute one turn: user message -> tool loop -> streamed response."""
+        """Execute one turn: user message -> tool loop -> streamed response.
+
+        If *cancel_event* is set, the loop exits at the next safe point.
+        """
         system_prompt = self.definition.system_prompt or DEFAULT_SYSTEM_PROMPT
 
         # Inject strategy hints if available
@@ -116,6 +123,12 @@ class AgentLoop:
             self._debug.log_llm_request(len(messages), len(tool_defs))
 
         for round_num in range(self.definition.max_tool_rounds):
+            # Check cancellation
+            if cancel_event and cancel_event.is_set():
+                conversation.add_assistant("[Stopped by user]")
+                yield StreamEvent(text_delta="\n[Stopped]", done=True)
+                return
+
             # Stream LLM response
             content_parts: list[str] = []
             tool_calls: list[ToolCall] = []
@@ -123,6 +136,8 @@ class AgentLoop:
             llm_start = time.monotonic()
 
             async for event in self._llm.stream(messages, tool_defs):
+                if cancel_event and cancel_event.is_set():
+                    break
                 if event.text_delta:
                     content_parts.append(event.text_delta)
                     yield event
@@ -130,6 +145,12 @@ class AgentLoop:
                     tool_calls.append(event.tool_call)
                 if event.done:
                     finish_reason = event.finish_reason
+
+            # Exit cleanly if cancelled during streaming
+            if cancel_event and cancel_event.is_set():
+                conversation.add_assistant("[Stopped by user]")
+                yield StreamEvent(text_delta="\n[Stopped]", done=True)
+                return
 
             if self._debug:
                 self._debug.log_llm_response(
@@ -152,6 +173,12 @@ class AgentLoop:
 
             # Execute each tool call
             for tc in tool_calls:
+                # Check cancellation before each tool
+                if cancel_event and cancel_event.is_set():
+                    conversation.add_assistant("[Stopped by user]")
+                    yield StreamEvent(text_delta="\n[Stopped]", done=True)
+                    return
+
                 tool = self._tools.get(tc.name)
                 schema = tool.schema if tool else None
 

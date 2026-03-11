@@ -305,11 +305,63 @@ async def run_repl() -> None:
                 else:
                     renderer.print_info("Usage: /pref [key] [value]")
                 continue
+            elif cmd == "/stop":
+                renderer.print_info("No agent running.")
+                continue
+            elif cmd == "/restart":
+                renderer.print_info("Restarting Vex...")
+                if activity_loop:
+                    activity_loop.stop()
+                if core.vexnet_client:
+                    await core.vexnet_client.disconnect()
+                os.execv(sys.executable, [sys.executable, "-m", "vex.cli.app"])
+            elif cmd.startswith("/configure set "):
+                parts = user_input.split(maxsplit=3)
+                if len(parts) == 4:
+                    from vex.config.writer import config_set
+
+                    try:
+                        path = config_set(parts[2], parts[3])
+                        renderer.print_info(f"Set {parts[2]} = {parts[3]}")
+                        renderer.print_info(f"  Config: {path}")
+                        renderer.print_info("  Run /restart to apply changes.")
+                    except Exception as e:
+                        renderer.print_error(f"Failed to set config: {e}")
+                else:
+                    renderer.print_info("Usage: /configure set <key> <value>")
+                continue
+            elif cmd.startswith("/configure get "):
+                parts = user_input.split(maxsplit=2)
+                if len(parts) == 3:
+                    from vex.config.writer import config_get
+
+                    val = config_get(parts[2])
+                    if val is None:
+                        renderer.print_info(f"{parts[2]} is not set")
+                    else:
+                        renderer.print_info(f"{parts[2]} = {val}")
+                else:
+                    renderer.print_info("Usage: /configure get <key>")
+                continue
             else:
                 renderer.print_error(f"Unknown command: {user_input}")
                 continue
 
         # Run agent
+        cancel_event = asyncio.Event()
+
+        async def _watch_for_stop():
+            """Monitor stdin for /stop while the agent is running."""
+            loop = asyncio.get_event_loop()
+            while not cancel_event.is_set():
+                try:
+                    line = await loop.run_in_executor(None, sys.stdin.readline)
+                except (EOFError, OSError):
+                    break
+                if line.strip().lower() == "/stop":
+                    cancel_event.set()
+                    break
+
         try:
             renderer.start_streaming()
             console.print()
@@ -318,8 +370,11 @@ async def run_repl() -> None:
             if core.vexnet_client:
                 core.vexnet_client.update_status("in conversation")
 
+            # Start background listener for /stop typed during execution
+            stop_watcher = asyncio.create_task(_watch_for_stop())
+
             response_text = ""
-            async for event in agent.run(user_input, conversation):
+            async for event in agent.run(user_input, conversation, cancel_event=cancel_event):
                 if isinstance(event, StreamEvent):
                     if event.text_delta:
                         renderer.stream_token(event.text_delta)
@@ -334,6 +389,14 @@ async def run_repl() -> None:
                     renderer.start_streaming()
 
             renderer.end_streaming()
+
+            # Clean up the stop watcher
+            cancel_event.set()  # signal watcher to exit
+            stop_watcher.cancel()
+
+            if cancel_event.is_set() and not response_text.strip():
+                renderer.print_info("[Stopped]")
+
             if core.vexnet_client:
                 core.vexnet_client.update_status("idle")
             console.print()
@@ -353,19 +416,47 @@ async def run_repl() -> None:
                     feedback_collector.record(rating, context=user_input[:200])
 
         except KeyboardInterrupt:
+            cancel_event.set()
             renderer.end_streaming()
-            renderer.print_info("\n[Interrupted]")
+            renderer.print_info("\n[Stopped]")
         except Exception as e:
             renderer.end_streaming()
             renderer.print_error(str(e))
+
+
+def _handle_configure(args) -> None:
+    """Handle `vex configure` subcommands."""
+    from vex.config.writer import config_get, config_set, find_config_path
+
+    if args.configure_action == "set":
+        path = config_set(args.key, args.value)
+        print(f"  Set {args.key} = {args.value}")
+        print(f"  Config: {path}")
+    elif args.configure_action == "get":
+        val = config_get(args.key)
+        if val is None:
+            print(f"  {args.key} is not set")
+            sys.exit(1)
+        else:
+            print(f"  {args.key} = {val}")
+    elif args.configure_action == "path":
+        path = find_config_path()
+        print(path or "No config file found")
+    else:
+        print("Usage: vex configure {set|get|path}")
+        sys.exit(1)
 
 
 def main() -> None:
     """Entry point for the vex CLI.
 
     Usage:
-        vex              — interactive REPL
-        vex --telegram   — start Telegram bot
+        vex                                — interactive REPL
+        vex --telegram                     — start Telegram bot
+        vex configure set <key> <value>    — set a config value
+        vex configure get <key>            — get a config value
+        vex configure path                 — show config file path
+        vex restart                        — restart the REPL (reload config)
     """
     import argparse
 
@@ -375,7 +466,34 @@ def main() -> None:
     )
     parser.add_argument("--token", help="Telegram bot token (with --telegram)")
     parser.add_argument("--workspace", help="Workspace directory (default: cwd)")
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    # vex configure set/get/path
+    cfg_parser = subparsers.add_parser("configure", help="Read/write config values")
+    cfg_sub = cfg_parser.add_subparsers(dest="configure_action")
+
+    set_parser = cfg_sub.add_parser("set", help="Set a config value")
+    set_parser.add_argument("key", help="Dotted key (e.g. llm.provider)")
+    set_parser.add_argument("value", help="Value to set")
+
+    get_parser = cfg_sub.add_parser("get", help="Get a config value")
+    get_parser.add_argument("key", help="Dotted key (e.g. llm.provider)")
+
+    cfg_sub.add_parser("path", help="Show config file path")
+
+    # vex restart — re-exec the process
+    subparsers.add_parser("restart", help="Restart Vex (reload config)")
+
     args = parser.parse_args()
+
+    if args.command == "configure":
+        _handle_configure(args)
+        return
+
+    if args.command == "restart":
+        # Re-exec ourselves to pick up new config
+        os.execv(sys.executable, [sys.executable, "-m", "vex.cli.app"])
 
     if args.telegram:
         import logging

@@ -124,26 +124,80 @@ $configDir = "$env:USERPROFILE\.vex"
 $configFile = "$configDir\config.toml"
 if (-not (Test-Path $configFile)) {
     New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-    @"
+    @'
+# ── Language Model ──
 [llm]
-provider = "ollama"
-model = "qwen3:30b-a3b"
+provider = "ollama"                   # "ollama", "anthropic", or "openai"
+# model = "qwen3:30b-a3b"            # override provider-specific model
 
 [llm.ollama]
 base_url = "http://localhost:11434/v1"
+model = "qwen3:30b-a3b"
+# max_tokens = 8192
 
-[network]
-enabled = false
+[llm.anthropic]
+# api_key = "${ANTHROPIC_API_KEY}"    # or set ANTHROPIC_API_KEY env var
+# model = "claude-sonnet-4-6"
+# max_tokens = 8192
 
+[llm.openai]
+# api_key = "${OPENAI_API_KEY}"       # or set OPENAI_API_KEY env var
+# model = "gpt-4o"
+# base_url = ""                       # custom OpenAI-compatible endpoint
+# max_tokens = 8192
+
+# ── Security & Agent Control ──
 [security]
-autonomy_level = 1
-max_agent_depth = 3
-max_tool_rounds = 200
+autonomy_level = 1                    # 0=ask all, 1=ask risky, 2=ask destructive, 3=full auto
+max_agent_depth = 3                   # max nesting depth for sub-agents
+max_tool_rounds = 200                 # max tool calls per agent invocation
+# dry_run = false                     # preview mode (no side effects)
 
+# ── Audit Logging ──
 [audit]
 enabled = true
 directory = ".vex/audit"
-"@ | Set-Content -Path $configFile -Encoding utf8
+
+# ── Telegram Bot ──
+[telegram]
+# bot_token = "${TELEGRAM_BOT_TOKEN}" # or set TELEGRAM_BOT_TOKEN env var
+# allowed_users = []                  # Telegram user IDs allowed to use the bot
+# allowed_groups = []                 # Group/supergroup chat IDs (negative numbers)
+# embedding_model = "nomic-embed-text"
+
+[telegram.group_monitor]
+# min_messages = 1                    # evaluate after N new messages
+# interjection_gap_seconds = 120      # min seconds between unsolicited comments
+
+# ── VexNet Network ──
+[network]
+enabled = false                       # connect to the VexNet hub
+# display_name = "Vex"
+# server_url = "https://vexhub.vexnet.ai"
+# capabilities = ["general", "web", "coding", "research"]
+# hub_heartbeat_interval = 60         # seconds between hub heartbeats
+# activity_interval = 300             # seconds between autonomous activity (0=disabled)
+
+[network.security]
+# allow_unknown_peers = false
+# max_concurrent_tasks = 3
+# max_task_timeout = 300
+# sandbox_directory = ".vex/network/sandbox"
+
+[network.security.default_policy]
+# trust_level = 0                     # 0=deny, 1=read-only, 2=read+write
+# max_risk_tier = 0
+# rate_limit = 5                      # tasks per hour
+
+# [network.hub]                       # run as a hub server
+# enabled = false
+# host = "0.0.0.0"
+# port = 9121
+
+# ── Debug ──
+[debug]
+# enabled = false                     # verbose debug logging
+'@ | Set-Content -Path $configFile -Encoding utf8
     Write-Host "  Default config created at $configFile" -ForegroundColor Green
 }
 
