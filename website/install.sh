@@ -27,7 +27,7 @@ PYTHON=""
 for cmd in python3.14 python3.13 python3.12 python3 python; do
     if command -v "$cmd" &>/dev/null; then
         ver=$("$cmd" --version 2>&1)
-        minor=$(echo "$ver" | grep -oP '3\.(\d+)' | head -1 | cut -d. -f2)
+        minor=$(echo "$ver" | sed -n 's/.*Python 3\.\([0-9]*\).*/\1/p')
         if [ -n "$minor" ] && [ "$minor" -ge 12 ]; then
             PYTHON="$cmd"
             echo -e "  Found: $ver ${GREEN}OK${NC}"
