@@ -95,6 +95,10 @@ class KeyPair:
     def public_key_bytes(self) -> bytes:
         return self._public_bytes
 
+    @property
+    def public_key_hex(self) -> str:
+        return self._public_bytes.hex()
+
     def sign(self, data: bytes) -> bytes:
         """Sign data with the private key. Returns 64-byte signature."""
         return self._private_key.sign(data)

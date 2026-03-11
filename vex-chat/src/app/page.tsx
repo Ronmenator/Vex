@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const API = 'https://vexnet-hub.azurewebsites.net';
+const API = '';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

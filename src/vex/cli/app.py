@@ -129,7 +129,9 @@ async def run_repl() -> None:
     debug_config = config.get("debug", {})
 
     provider = llm_config.get("provider", "anthropic")
-    model = llm_config.get("model", "claude-sonnet-4-20250514")
+    _provider_model = llm_config.get(provider, {}).get("model")
+    _defaults = {"anthropic": "claude-sonnet-4-6", "openai": "gpt-4o", "ollama": "llama3.2"}
+    model = llm_config.get("model") or _provider_model or _defaults.get(provider, "gpt-4o")
     workspace = os.getcwd()
 
     # Create LLM client

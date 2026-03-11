@@ -65,7 +65,16 @@ def create_llm_client(
     Overrides allow sub-agents to use different providers/models.
     """
     provider = provider_override or config.get("provider", "anthropic")
-    model = model_override or config.get("model", "claude-sonnet-4-20250514")
+    # Model precedence: explicit override > top-level [llm].model >
+    # provider-specific [llm.<provider>].model > built-in default.
+    _provider_model = config.get(provider, {}).get("model")
+    _defaults = {"anthropic": "claude-sonnet-4-6", "openai": "gpt-4o", "ollama": "llama3.2"}
+    model = (
+        model_override
+        or config.get("model")
+        or _provider_model
+        or _defaults.get(provider, "gpt-4o")
+    )
 
     if provider == "anthropic":
         provider_config = config.get("anthropic", {})

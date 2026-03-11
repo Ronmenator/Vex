@@ -1,12 +1,12 @@
 [llm]
-provider = "ollama"
-model = "qwen3:30b-a3b"
+provider = "openai"
 
 [llm.anthropic]
 # api_key from ANTHROPIC_API_KEY env var
 
 [llm.openai]
 # api_key from OPENAI_API_KEY env var
+model="gpt-5.3-codex"
 
 [llm.ollama]
 base_url = "http://localhost:11434/v1"
@@ -15,7 +15,7 @@ model = "qwen3:30b-a3b"
 [network]
 enabled = true
 display_name = "Vex"
-server_url = "https://vexnet-hub.azurewebsites.net"   # VexNet server URL
+server_url = "https://vexhub.vexnet.ai"   # VexNet server URL
 capabilities = ["general", "web", "coding", "research"]
 
 [security]
