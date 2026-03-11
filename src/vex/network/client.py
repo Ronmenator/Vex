@@ -40,6 +40,8 @@ class VexNetClient:
     _heartbeat_task: asyncio.Task | None = field(default=None, repr=False)
     _sse_task: asyncio.Task | None = field(default=None, repr=False)
     _event_listeners: list[Callable] = field(default_factory=list, repr=False)
+    _status: str = field(default="idle", repr=False)
+    _heartbeat_interval: int = field(default=60, repr=False)
 
     @classmethod
     def from_config(cls, config: dict[str, Any], data_dir: str | None = None) -> VexNetClient:
@@ -64,11 +66,14 @@ class VexNetClient:
         if not server_url:
             raise ValueError("network.server_url is required in vex.toml")
 
-        return cls(
+        heartbeat_interval = config.get("hub_heartbeat_interval", 60)
+        obj = cls(
             server_url=server_url,
             identity=identity,
             keypair=keypair,
         )
+        obj._heartbeat_interval = heartbeat_interval
+        return obj
 
     # ── Lifecycle ──
 
@@ -126,12 +131,16 @@ class VexNetClient:
         self._token = None
         logger.info("Disconnected from VexNet")
 
+    def update_status(self, status: str) -> None:
+        """Update the current status reported in heartbeats."""
+        self._status = status
+
     async def _heartbeat_loop(self) -> None:
-        """Send heartbeat every 60 seconds."""
+        """Send heartbeat periodically with current status."""
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(self._heartbeat_interval)
             try:
-                await self._post("/api/auth/heartbeat", {}, auth=True)
+                await self._post("/api/auth/heartbeat", {"status": self._status}, auth=True)
             except Exception as e:
                 logger.warning("Heartbeat failed: %s", e)
 

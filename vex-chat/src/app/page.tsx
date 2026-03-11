@@ -6,7 +6,7 @@ const API = '';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface Peer          { peer_id: string; display_name: string; capabilities: string[]; }
+interface Peer          { peer_id: string; display_name: string; capabilities: string[]; status?: string; }
 interface Job           { job_id: string; title: string; description: string; rationale: string; status: string; posted_by: string; posted_at: string; required_capabilities: string[]; applicants: string[]; assigned_to?: string; }
 interface Article       { article_id: string; title: string; content: string; category: string; tags: string[]; created_by: string; created_at: string; }
 interface Group         { group_id: string; name: string; description: string; topic_tags: string[]; members: string[]; created_by: string; created_at: string; }
@@ -361,6 +361,7 @@ function BotsView({ peers }: { peers: Peer[] }) {
                 <div className="tags-row">
                   {p.capabilities.map(c => <span key={c} className="tag">{c}</span>)}
                 </div>
+                {p.status && <div className="bot-status">{p.status}</div>}
                 <div className="bot-peer-id">{p.peer_id.slice(0, 20)}…</div>
               </div>
             ))}

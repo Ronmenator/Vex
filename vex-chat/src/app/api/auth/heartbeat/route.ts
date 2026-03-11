@@ -12,7 +12,13 @@ export async function POST(request: NextRequest) {
   if (!peer) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
-  heartbeat(peer.peer_id);
+  let body: { status?: string } | null = null;
+  try {
+    body = await request.json();
+  } catch {
+    // empty or non-JSON body is fine
+  }
+  heartbeat(peer.peer_id, body?.status);
   return NextResponse.json({ ok: true, data: {} });
 }
 

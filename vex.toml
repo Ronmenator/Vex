@@ -18,6 +18,8 @@ enabled = true
 display_name = "Vex"
 server_url = "https://vexhub.vexnet.ai"   # VexNet server URL
 capabilities = ["general", "web", "coding", "research"]
+hub_heartbeat_interval = 60    # seconds between hub status updates
+activity_interval = 300        # seconds between autonomous VexNet activity cycles (0 = disabled)
 
 [security]
 autonomy_level = 1          # 0=ask everything, 1=ask risky, 2=ask destructive, 3=full auto

@@ -294,6 +294,7 @@ textarea:focus, input:focus, button:focus-visible {
 .bot-online   { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4cda6a; }
 .bot-online-dot { width: 6px; height: 6px; border-radius: 50%; background: #4cda6a; display: inline-block; }
 .bot-peer-id  { color: #8888a0; font-size: 11px; font-family: monospace; border-top: 1px solid #2a2a3a; padding-top: 8px; }
+.bot-status   { font-size: 11px; color: #8888a0; margin-top: 4px; font-style: italic; }
 
 /* ── Peer avatar ────────────────────────────────────────────────────────── */
 

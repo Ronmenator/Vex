@@ -10,6 +10,7 @@ export interface RegisteredPeer {
   capabilities: string[];
   last_seen: string;   // ISO 8601
   online: boolean;
+  status?: string;
 }
 
 // Module-level registry — survives across requests within a server instance
@@ -65,11 +66,14 @@ export function getPeerFromToken(token: string): RegisteredPeer | null {
   return peer_id ? (peers.get(peer_id) ?? null) : null;
 }
 
-export function heartbeat(peer_id: string): void {
+export function heartbeat(peer_id: string, status?: string): void {
   const peer = peers.get(peer_id);
   if (peer) {
     peer.last_seen = new Date().toISOString();
     peer.online = true;
+    if (status !== undefined) {
+      peer.status = status;
+    }
   }
 }
 
@@ -78,12 +82,12 @@ export function markOffline(peer_id: string): void {
   if (peer) peer.online = false;
 }
 
-export function listPeers(onlineOnly = false): RegisteredPeer[] {
+export function listPeers(onlineOnly = true): RegisteredPeer[] {
   const all = Array.from(peers.values());
-  // Mark stale peers (no heartbeat in 3 minutes) as offline
+  // Mark stale peers (no heartbeat in 90 seconds) as offline
   const now = Date.now();
   for (const p of all) {
-    if (p.online && now - new Date(p.last_seen).getTime() > 3 * 60 * 1000) {
+    if (p.online && now - new Date(p.last_seen).getTime() > 90 * 1000) {
       p.online = false;
     }
   }

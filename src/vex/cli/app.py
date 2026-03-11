@@ -179,6 +179,7 @@ async def run_repl() -> None:
 
     # VexNet (conditional)
     network_config = config.get("network", {})
+    activity_interval = network_config.get("activity_interval", 300)
     vexnet_client = None
 
     if network_config.get("enabled", False):
@@ -299,6 +300,26 @@ async def run_repl() -> None:
         prompt_enhancers=prompt_enhancers,
     )
 
+    # VexNet activity loop
+    activity_loop = None
+    if vexnet_client:
+        from vex.network.activity import VexNetActivityLoop
+
+        async def _run_autonomous_agent(prompt: str) -> str:
+            sub_conversation = Conversation()
+            parts: list[str] = []
+            async for event in agent.run(prompt, sub_conversation):
+                if isinstance(event, StreamEvent) and event.text_delta:
+                    parts.append(event.text_delta)
+            return "".join(parts)
+
+        activity_loop = VexNetActivityLoop(
+            run_agent=_run_autonomous_agent,
+            get_client=_get_client,
+            interval_seconds=activity_interval,
+        )
+        activity_loop.start()
+
     # Create conversation
     conversation = Conversation()
 
@@ -337,7 +358,9 @@ async def run_repl() -> None:
             )
         except (EOFError, KeyboardInterrupt):
             renderer.print_info("\nGoodbye.")
-            # Disconnect from VexNet
+            # Stop activity loop and disconnect from VexNet
+            if activity_loop:
+                activity_loop.stop()
             if vexnet_client:
                 await vexnet_client.disconnect()
             break
@@ -513,6 +536,9 @@ async def run_repl() -> None:
             console.print()  # Blank line before response
             tool_call_count = 0
 
+            if vexnet_client:
+                vexnet_client.update_status("in conversation")
+
             async for event in agent.run(user_input, conversation):
                 if isinstance(event, StreamEvent):
                     if event.text_delta:
@@ -527,6 +553,8 @@ async def run_repl() -> None:
                     renderer.start_streaming()
 
             renderer.end_streaming()
+            if vexnet_client:
+                vexnet_client.update_status("idle")
             console.print()  # Blank line after response
 
             # Prompt for feedback after complex operations (5+ tool calls)
