@@ -10,110 +10,15 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from rich.console import Console
 
-from vex.agent.conversation import Conversation
+from vex.agent.conversation import Conversation, RetrievalConversation
 from vex.agent.definition import AgentDefinition
 from vex.agent.loop import AgentLoop, ToolCallEvent
-from vex.agent.registry import AgentRegistry
-from vex.agent.strategy import StrategyAdvisor
-from vex.audit.log import AuditLog
 from vex.cli.approvals import ApprovalManager
 from vex.cli.renderer import Renderer
 from vex.communication.feedback import FeedbackCollector
-from vex.config.loader import load_config
 from vex.context.preferences import PreferenceStore
-from vex.debug.mode import DebugMode
+from vex.core import VexCore
 from vex.llm.base import StreamEvent
-from vex.llm.factory import create_llm_client
-from vex.metrics.analyzer import MetricsAnalyzer
-from vex.metrics.collector import MetricsCollector
-from vex.safety.conflict import ConflictDetector
-from vex.tools.agent_ask import AgentAskTool
-from vex.tools.agent_create import AgentCreateTool
-from vex.tools.agent_delegate import AgentDelegateTool
-from vex.tools.file_batch import FileBatchTool
-from vex.tools.file_diff import FileDiffTool
-from vex.tools.file_edit import FileEditTool
-from vex.tools.file_read import FileReadTool
-from vex.tools.file_write import FileWriteTool
-from vex.tools.glob_tool import GlobTool
-from vex.tools.grep_tool import GrepTool
-from vex.tools.memory import MemoryStore, MemoryTool
-from vex.tools.middleware import (
-    DryRunMiddleware,
-    MetricsMiddleware,
-    RetryMiddleware,
-    TimeoutMiddleware,
-    ToolExecutor,
-)
-from vex.tools.registry import ToolRegistry
-from vex.tools.shell import ShellTool
-from vex.tools.browser import BrowserTool
-from vex.tools.web_fetch import WebFetchTool
-from vex.tools.web_search import WebSearchTool
-from vex.tools.net_broadcast import NetBroadcastTool
-from vex.tools.net_constitution import NetConstitutionTool
-from vex.tools.net_discover import NetDiscoverTool
-from vex.tools.net_group import NetGroupTool
-from vex.tools.net_jobs import NetJobsTool
-from vex.tools.net_peers import NetPeersTool
-from vex.tools.net_request import NetRequestTool
-from vex.tools.net_wiki import NetWikiTool
-
-
-def build_tool_registry(
-    agent_registry: AgentRegistry,
-    delegate_func: object,
-    ask_func: object,
-    memory_store: MemoryStore,
-    max_agent_depth: int = 3,
-    get_client: object | None = None,
-) -> ToolRegistry:
-    """Register all available tools."""
-    registry = ToolRegistry()
-    # Read-only tools
-    registry.register(FileReadTool())
-    registry.register(GlobTool())
-    registry.register(GrepTool())
-    registry.register(FileDiffTool())
-    # Write tools
-    registry.register(FileWriteTool())
-    registry.register(FileEditTool())
-    registry.register(FileBatchTool())
-    registry.register(ShellTool())
-    # Web tools
-    registry.register(WebSearchTool())
-    registry.register(WebFetchTool())
-    registry.register(BrowserTool())
-    # Memory
-    registry.register(MemoryTool(memory_store))
-    # Agent meta-tools
-    registry.register(AgentCreateTool(agent_registry, max_depth=max_agent_depth))
-    registry.register(AgentDelegateTool(delegate_func))
-    registry.register(AgentAskTool(ask_func))
-    # Network tools (VexNet)
-    if get_client is not None:
-        registry.register(NetDiscoverTool(get_client))
-        registry.register(NetRequestTool(get_client))
-        registry.register(NetBroadcastTool(get_client))
-        registry.register(NetPeersTool(get_client))
-        registry.register(NetJobsTool(get_client))
-        registry.register(NetWikiTool(get_client))
-        registry.register(NetGroupTool(get_client))
-        registry.register(NetConstitutionTool(get_client))
-    # Discover plugins
-    registry.discover_plugins()
-    return registry
-
-
-def build_tool_executor(debug: bool = False) -> ToolExecutor:
-    """Build the middleware-based tool executor."""
-    executor = ToolExecutor()
-    executor.add(DryRunMiddleware())
-    executor.add(TimeoutMiddleware())
-    executor.add(RetryMiddleware())
-    if debug:
-        executor.add(MetricsMiddleware())
-    return executor
 
 
 async def run_repl() -> None:
@@ -121,207 +26,95 @@ async def run_repl() -> None:
     console = Console()
     renderer = Renderer(console)
 
-    # Load config
-    config = load_config()
-    llm_config = config.get("llm", {})
-    security_config = config.get("security", {})
-    audit_config = config.get("audit", {})
-    debug_config = config.get("debug", {})
-
-    provider = llm_config.get("provider", "anthropic")
-    _provider_model = llm_config.get(provider, {}).get("model")
-    _defaults = {"anthropic": "claude-sonnet-4-6", "openai": "gpt-4o", "ollama": "llama3.2"}
-    model = llm_config.get("model") or _provider_model or _defaults.get(provider, "gpt-4o")
-    workspace = os.getcwd()
-
-    # Create LLM client
+    # Initialize shared engine
     try:
-        llm = create_llm_client(llm_config)
+        core = VexCore(workspace=os.getcwd())
     except Exception as e:
-        renderer.print_error(f"Failed to create LLM client: {e}")
+        renderer.print_error(f"Failed to initialize Vex: {e}")
         sys.exit(1)
 
-    # Create audit log
-    audit_dir = os.path.join(workspace, audit_config.get("directory", ".vex/audit"))
-    audit_log = AuditLog(
-        directory=audit_dir,
-        enabled=audit_config.get("enabled", True),
-    )
-
-    # Create approval manager
+    # CLI-specific components
     approval_manager = ApprovalManager(renderer)
+    feedback_collector = FeedbackCollector(core.workspace)
+    preferences = PreferenceStore(core.workspace)
 
-    # Create memory store
-    memory_dir = os.path.join(workspace, ".vex", "memory")
-    memory_store = MemoryStore(memory_dir)
-
-    # Create agent registry
-    agent_registry = AgentRegistry()
-
-    # Debug mode
-    debug_mode = DebugMode(console)
-    if debug_config.get("enabled", False):
-        debug_mode.enable()
-
-    # Metrics
-    metrics_collector = MetricsCollector(workspace)
-    metrics_analyzer = MetricsAnalyzer(metrics_collector)
-    strategy_advisor = StrategyAdvisor(metrics_analyzer)
-
-    # Conflict detector
-    conflict_detector = ConflictDetector()
-
-    # Feedback collector
-    feedback_collector = FeedbackCollector(workspace)
-
-    # Preferences
-    preferences = PreferenceStore(workspace)
-
-    # VexNet (conditional)
-    network_config = config.get("network", {})
-    activity_interval = network_config.get("activity_interval", 300)
-    vexnet_client = None
-
-    if network_config.get("enabled", False):
-        try:
-            from vex.network.client import VexNetClient
-
-            vexnet_client = VexNetClient.from_config(
-                network_config,
-                data_dir=os.path.join(workspace, ".vex", "network"),
-            )
-            renderer.print_info(
-                f"  [VexNet enabled: {vexnet_client.identity.display_name} "
-                f"-> {network_config.get('server_url', '?')}]"
-            )
-        except Exception as e:
-            renderer.print_error(f"Failed to initialize VexNet: {e}")
-            vexnet_client = None
-
-    def _get_client():
-        return vexnet_client
-
-    # Tool executor with middleware
-    tool_executor = build_tool_executor(debug=debug_mode.enabled)
-
-    # Create default agent definition
-    dry_run = security_config.get("dry_run", False)
-    agent_def = AgentDefinition(
-        agent_id="default",
-        display_name="Vex",
-        autonomy_level=security_config.get("autonomy_level", 1),
-        max_tool_rounds=security_config.get("max_tool_rounds", 25),
-        workspace_root=workspace,
-        dry_run=dry_run,
-    )
-    agent_registry.register(agent_def)
-
-    # Load persisted agent configs
-    try:
-        from vex.config.api import AgentConfigAPI
-
-        agent_api = AgentConfigAPI(workspace, agent_registry)
-        agent_api.load_persisted()
-    except Exception:
-        agent_api = None
-
-    # --- Delegation infrastructure ---
-
-    async def delegate_to_agent(agent_id: str, task: str) -> str:
-        """Run a sub-agent and return its response text."""
-        target_def = agent_registry.get(agent_id)
-        if not target_def:
-            raise ValueError(f"Agent '{agent_id}' not found.")
-
-        sub_llm = create_llm_client(
-            llm_config,
-            provider_override=target_def.llm_provider,
-            model_override=target_def.llm_model,
-        )
-
-        sub_agent = AgentLoop(
-            definition=target_def,
-            llm=sub_llm,
-            tool_registry=tool_registry,
-            approval_callback=approval_manager.check_approval,
-            audit_log=audit_log,
-            tool_executor=tool_executor,
-            metrics_collector=metrics_collector,
-            conflict_detector=conflict_detector,
-            debug_mode=debug_mode,
-        )
-
-        sub_conversation = Conversation()
-        response_parts: list[str] = []
-
-        async for event in sub_agent.run(task, sub_conversation):
-            if isinstance(event, StreamEvent) and event.text_delta:
-                response_parts.append(event.text_delta)
-            elif isinstance(event, ToolCallEvent):
-                if event.result is None:
-                    renderer.render_tool_call(event)
-                else:
-                    renderer.render_tool_result(event)
-
-        return "".join(response_parts) or "Agent completed without response."
-
+    # Set up interactive ask function
     async def ask_user(question: str) -> str:
-        """Prompt the user with a question and return their answer."""
         renderer.console.print()
         renderer.console.print(f"  [bold bright_cyan]Agent asks:[/] {question}")
         answer = renderer.console.input("  Your answer: ").strip()
         return answer
 
-    # Build tool registry with delegation wired in
-    max_depth = security_config.get("max_agent_depth", 3)
-    tool_registry = build_tool_registry(
-        agent_registry, delegate_to_agent, ask_user, memory_store, max_depth,
-        get_client=_get_client if vexnet_client else None,
+    core.set_ask_func(ask_user)
+
+    # User identity (from telegram.allowed_users[0] for cross-frontend continuity)
+    user_id = core.cli_user_id
+    user_name = "User"
+
+    # Update user profile
+    core.user_profiles.get_or_create(user_id, user_name)
+
+    # Create retrieval-based conversation (persistent, shared with Telegram)
+    conversation = RetrievalConversation(
+        chat_id=user_id,
+        chat_history=core.chat_history,
+        user_name=user_name,
+        chat_title=f"CLI session",
     )
 
-    # Build prompt enhancers
-    prompt_enhancers = []
-    if vexnet_client:
-        from vex.network.prompt import VexNetPromptEnhancer
-        prompt_enhancers.append(VexNetPromptEnhancer(_get_client))
-
-    # Create agent loop
-    agent = AgentLoop(
-        definition=agent_def,
-        llm=llm,
-        tool_registry=tool_registry,
+    # Create agent with CLI-specific approval callback
+    agent = core.create_agent(
         approval_callback=approval_manager.check_approval,
-        audit_log=audit_log,
-        tool_executor=tool_executor,
-        metrics_collector=metrics_collector,
-        conflict_detector=conflict_detector,
-        debug_mode=debug_mode,
-        strategy_advisor=strategy_advisor,
-        prompt_enhancers=prompt_enhancers,
+        user_id=user_id,
+        chat_id=user_id,
+        is_dm=True,
     )
 
-    # VexNet activity loop
+    # VexNet activity loop (background, fully autonomous)
     activity_loop = None
-    if vexnet_client:
+    if core.vexnet_client:
         from vex.network.activity import VexNetActivityLoop
+
+        async def _auto_approve(tc, schema) -> bool:
+            return True
+
+        _bg_agent_def = AgentDefinition(
+            agent_id="background",
+            display_name="Vex (background)",
+            autonomy_level=3,
+            max_tool_rounds=core.agent_def.max_tool_rounds,
+            workspace_root=core.workspace,
+            dry_run=core.dry_run,
+        )
+
+        _bg_agent = AgentLoop(
+            definition=_bg_agent_def,
+            llm=core.llm,
+            tool_registry=core.tool_registry,
+            approval_callback=_auto_approve,
+            audit_log=core.audit_log,
+            tool_executor=core.tool_executor,
+            metrics_collector=core.metrics_collector,
+            conflict_detector=core.conflict_detector,
+            debug_mode=core.debug_mode,
+            prompt_enhancers=core.build_prompt_enhancers(),
+        )
 
         async def _run_autonomous_agent(prompt: str) -> str:
             sub_conversation = Conversation()
             parts: list[str] = []
-            async for event in agent.run(prompt, sub_conversation):
+            async for event in _bg_agent.run(prompt, sub_conversation):
                 if isinstance(event, StreamEvent) and event.text_delta:
                     parts.append(event.text_delta)
             return "".join(parts)
 
+        activity_interval = core.network_config.get("activity_interval", 300)
         activity_loop = VexNetActivityLoop(
             run_agent=_run_autonomous_agent,
-            get_client=_get_client,
+            get_client=core._get_vexnet_client,
             interval_seconds=activity_interval,
         )
         activity_loop.start()
-
-    # Create conversation
-    conversation = Conversation()
 
     # Setup prompt with history
     history_dir = os.path.join(os.path.expanduser("~"), ".vex")
@@ -333,22 +126,22 @@ async def run_repl() -> None:
     )
 
     # Connect to VexNet server if enabled
-    if vexnet_client:
+    if core.vexnet_client:
         try:
-            await vexnet_client.connect()
+            await core.vexnet_client.connect()
         except Exception as e:
             renderer.print_error(f"VexNet connection failed: {e}")
-            vexnet_client = None
+            core.vexnet_client = None
 
-    renderer.print_welcome(provider, model, workspace)
-    if dry_run:
+    renderer.print_welcome(core.provider, core.model, core.workspace)
+    if core.dry_run:
         renderer.print_info("  [DRY RUN mode enabled — no write operations will execute]")
-    if debug_mode.enabled:
+    if core.debug_mode.enabled:
         renderer.print_info("  [DEBUG mode enabled]")
-    if vexnet_client:
+    if core.vexnet_client:
         renderer.print_info("  [VexNet active — use /tools to see net.* tools]")
 
-    tool_call_count = 0  # Track for feedback prompts
+    tool_call_count = 0
 
     while True:
         try:
@@ -358,11 +151,10 @@ async def run_repl() -> None:
             )
         except (EOFError, KeyboardInterrupt):
             renderer.print_info("\nGoodbye.")
-            # Stop activity loop and disconnect from VexNet
             if activity_loop:
                 activity_loop.stop()
-            if vexnet_client:
-                await vexnet_client.disconnect()
+            if core.vexnet_client:
+                await core.vexnet_client.disconnect()
             break
 
         user_input = user_input.strip()
@@ -381,14 +173,14 @@ async def run_repl() -> None:
                 renderer.print_info("Conversation cleared.")
                 continue
             elif cmd == "/tools":
-                tools = tool_registry.list_all()
+                tools = core.tool_registry.list_all()
                 for t in tools:
                     renderer.print_info(
                         f"  {t.name} [{t.risk_tier.name}] — {t.description}"
                     )
                 continue
             elif cmd == "/agents":
-                agents = agent_registry.list_all()
+                agents = core.agent_registry.list_all()
                 for a in agents:
                     renderer.print_info(
                         f"  {a.agent_id} ({a.display_name}) "
@@ -400,38 +192,32 @@ async def run_repl() -> None:
                 if len(parts) == 2 and parts[1].isdigit():
                     level = int(parts[1])
                     if 0 <= level <= 3:
-                        agent_def = AgentDefinition(
-                            agent_id=agent_def.agent_id,
-                            display_name=agent_def.display_name,
-                            system_prompt=agent_def.system_prompt,
+                        core.agent_def = AgentDefinition(
+                            agent_id=core.agent_def.agent_id,
+                            display_name=core.agent_def.display_name,
+                            system_prompt=core.agent_def.system_prompt,
                             autonomy_level=level,
-                            max_tool_rounds=agent_def.max_tool_rounds,
-                            workspace_root=agent_def.workspace_root,
-                            dry_run=agent_def.dry_run,
+                            max_tool_rounds=core.agent_def.max_tool_rounds,
+                            workspace_root=core.agent_def.workspace_root,
+                            dry_run=core.agent_def.dry_run,
                         )
-                        agent_registry.register(agent_def)
-                        agent = AgentLoop(
-                            definition=agent_def,
-                            llm=llm,
-                            tool_registry=tool_registry,
+                        core.agent_registry.register(core.agent_def)
+                        agent = core.create_agent(
                             approval_callback=approval_manager.check_approval,
-                            audit_log=audit_log,
-                            tool_executor=tool_executor,
-                            metrics_collector=metrics_collector,
-                            conflict_detector=conflict_detector,
-                            debug_mode=debug_mode,
-                            strategy_advisor=strategy_advisor,
+                            user_id=user_id,
+                            chat_id=user_id,
+                            is_dm=True,
                         )
                         renderer.print_info(f"Autonomy level set to {level}.")
                     else:
                         renderer.print_error("Autonomy level must be 0-3.")
                 else:
                     renderer.print_info(
-                        f"Current autonomy level: {agent_def.autonomy_level}"
+                        f"Current autonomy level: {core.agent_def.autonomy_level}"
                     )
                 continue
             elif cmd == "/audit":
-                entries = audit_log.query_recent(10)
+                entries = core.audit_log.query_recent(10)
                 if not entries:
                     renderer.print_info("No audit entries.")
                 else:
@@ -442,38 +228,32 @@ async def run_repl() -> None:
                         )
                 continue
             elif cmd == "/debug":
-                state = debug_mode.toggle()
+                state = core.debug_mode.toggle()
                 renderer.print_info(f"Debug mode {'enabled' if state else 'disabled'}.")
                 continue
             elif cmd == "/dryrun":
-                agent_def = AgentDefinition(
-                    agent_id=agent_def.agent_id,
-                    display_name=agent_def.display_name,
-                    system_prompt=agent_def.system_prompt,
-                    autonomy_level=agent_def.autonomy_level,
-                    max_tool_rounds=agent_def.max_tool_rounds,
-                    workspace_root=agent_def.workspace_root,
-                    dry_run=not agent_def.dry_run,
+                core.agent_def = AgentDefinition(
+                    agent_id=core.agent_def.agent_id,
+                    display_name=core.agent_def.display_name,
+                    system_prompt=core.agent_def.system_prompt,
+                    autonomy_level=core.agent_def.autonomy_level,
+                    max_tool_rounds=core.agent_def.max_tool_rounds,
+                    workspace_root=core.agent_def.workspace_root,
+                    dry_run=not core.agent_def.dry_run,
                 )
-                agent_registry.register(agent_def)
-                agent = AgentLoop(
-                    definition=agent_def,
-                    llm=llm,
-                    tool_registry=tool_registry,
+                core.agent_registry.register(core.agent_def)
+                agent = core.create_agent(
                     approval_callback=approval_manager.check_approval,
-                    audit_log=audit_log,
-                    tool_executor=tool_executor,
-                    metrics_collector=metrics_collector,
-                    conflict_detector=conflict_detector,
-                    debug_mode=debug_mode,
-                    strategy_advisor=strategy_advisor,
+                    user_id=user_id,
+                    chat_id=user_id,
+                    is_dm=True,
                 )
                 renderer.print_info(
-                    f"Dry-run mode {'enabled' if agent_def.dry_run else 'disabled'}."
+                    f"Dry-run mode {'enabled' if core.agent_def.dry_run else 'disabled'}."
                 )
                 continue
             elif cmd == "/metrics":
-                stats = metrics_collector.get_tool_stats()
+                stats = core.metrics_collector.get_tool_stats()
                 if stats["total"] == 0:
                     renderer.print_info("No metrics collected yet.")
                 else:
@@ -482,7 +262,7 @@ async def run_repl() -> None:
                         f"success rate: {stats['success_rate']:.0%}, "
                         f"avg duration: {stats['avg_duration_s']:.2f}s"
                     )
-                    errors = metrics_collector.get_common_errors(5)
+                    errors = core.metrics_collector.get_common_errors(5)
                     if errors:
                         renderer.print_info("  Common errors:")
                         for e in errors:
@@ -512,7 +292,6 @@ async def run_repl() -> None:
             elif cmd.startswith("/pref"):
                 parts = user_input.split(maxsplit=2)
                 if len(parts) == 1:
-                    # Show all preferences
                     prefs = preferences.all()
                     if not prefs:
                         renderer.print_info("No preferences set.")
@@ -533,16 +312,18 @@ async def run_repl() -> None:
         # Run agent
         try:
             renderer.start_streaming()
-            console.print()  # Blank line before response
+            console.print()
             tool_call_count = 0
 
-            if vexnet_client:
-                vexnet_client.update_status("in conversation")
+            if core.vexnet_client:
+                core.vexnet_client.update_status("in conversation")
 
+            response_text = ""
             async for event in agent.run(user_input, conversation):
                 if isinstance(event, StreamEvent):
                     if event.text_delta:
                         renderer.stream_token(event.text_delta)
+                        response_text += event.text_delta
                 elif isinstance(event, ToolCallEvent):
                     renderer.end_streaming()
                     if event.result is None:
@@ -553,11 +334,19 @@ async def run_repl() -> None:
                     renderer.start_streaming()
 
             renderer.end_streaming()
-            if vexnet_client:
-                vexnet_client.update_status("idle")
-            console.print()  # Blank line after response
+            if core.vexnet_client:
+                core.vexnet_client.update_status("idle")
+            console.print()
 
-            # Prompt for feedback after complex operations (5+ tool calls)
+            # Async fact extraction (fire-and-forget)
+            if response_text.strip():
+                asyncio.create_task(
+                    core.fact_extractor.extract_and_update(
+                        user_id, user_input, response_text
+                    )
+                )
+
+            # Prompt for feedback after complex operations
             if tool_call_count >= 5:
                 rating = renderer.render_feedback_prompt()
                 if rating:

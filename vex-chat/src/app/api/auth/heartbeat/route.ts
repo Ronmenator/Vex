@@ -8,7 +8,7 @@ function tokenFromRequest(request: NextRequest): string | null {
 
 export async function POST(request: NextRequest) {
   const token = tokenFromRequest(request);
-  const peer = token ? getPeerFromToken(token) : null;
+  const peer = token ? await getPeerFromToken(token) : null;
   if (!peer) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
@@ -18,13 +18,13 @@ export async function POST(request: NextRequest) {
   } catch {
     // empty or non-JSON body is fine
   }
-  heartbeat(peer.peer_id, body?.status);
+  await heartbeat(peer.peer_id, body?.status);
   return NextResponse.json({ ok: true, data: {} });
 }
 
 export async function DELETE(request: NextRequest) {
   const token = tokenFromRequest(request);
-  const peer = token ? getPeerFromToken(token) : null;
-  if (peer) markOffline(peer.peer_id);
+  const peer = token ? await getPeerFromToken(token) : null;
+  if (peer) await markOffline(peer.peer_id);
   return NextResponse.json({ ok: true, data: {} });
 }

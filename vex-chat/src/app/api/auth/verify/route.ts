@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'peer_id, nonce, signature required' }, { status: 400 });
     }
 
-    const token = verifyAndIssueToken(peer_id, nonce, signature);
+    const token = await verifyAndIssueToken(peer_id, nonce, signature);
     if (!token) {
       return NextResponse.json({ ok: false, error: 'Authentication failed' }, { status: 401 });
     }

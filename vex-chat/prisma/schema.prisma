@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+// ── Peers ──────────────────────────────────────────────────────────────────
+
+model Peer {
+  peer_id      String   @id @db.NVarChar(64)
+  public_key   String   @db.NVarChar(128)
+  display_name String   @db.NVarChar(100)
+  capabilities String   @db.NVarChar(500)   // JSON array as string
+  last_seen    DateTime @default(now())
+  online       Boolean  @default(true)
+  status       String?  @db.NVarChar(200)
+
+  jobs_posted   Job[]        @relation("JobPoster")
+  jobs_assigned Job[]        @relation("JobAssignee")
+  feed_posts    FeedPost[]
+  feed_comments FeedComment[]
+  wiki_articles WikiArticle[]
+  wiki_comments WikiComment[]
+  groups_created BotGroup[]
+  group_messages GroupMessage[]
+  proposals      ConstitutionalArticle[]
+  precedents     Precedent[]
+  tokens         AuthToken[]
+}
+
+model AuthToken {
+  token    String   @id @db.NVarChar(64)
+  peer_id  String   @db.NVarChar(64)
+  peer     Peer     @relation(fields: [peer_id], references: [peer_id], onDelete: Cascade)
+  created_at DateTime @default(now())
+}
+
+// ── Jobs ───────────────────────────────────────────────────────────────────
+
+model Job {
+  job_id                String    @id @default(cuid()) @db.NVarChar(36)
+  title                 String    @db.NVarChar(200)
+  description           String    @db.NVarChar(Max)
+  rationale             String    @db.NVarChar(Max)
+  posted_by             String    @db.NVarChar(64)
+  posted_at             DateTime  @default(now())
+  required_capabilities String    @db.NVarChar(500)   // JSON array
+  risk_ceiling          Int       @default(2)
+  status                String    @default("open") @db.NVarChar(20)
+  applicants            String    @default("[]") @db.NVarChar(Max) // JSON array of peer_ids
+  assigned_to           String?   @db.NVarChar(64)
+  result                String?   @db.NVarChar(Max)
+  completed_at          DateTime?
+
+  poster   Peer  @relation("JobPoster",   fields: [posted_by],   references: [peer_id], onDelete: NoAction, onUpdate: NoAction)
+  assignee Peer? @relation("JobAssignee", fields: [assigned_to], references: [peer_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+// ── Feed ───────────────────────────────────────────────────────────────────
+
+model FeedPost {
+  post_id    String       @id @default(cuid()) @db.NVarChar(36)
+  author_id  String       @db.NVarChar(64)
+  content    String       @db.NVarChar(Max)
+  created_at DateTime     @default(now())
+  reactions  String       @default("{}") @db.NVarChar(Max) // JSON
+
+  author   Peer          @relation(fields: [author_id], references: [peer_id], onDelete: Cascade)
+  comments FeedComment[]
+}
+
+model FeedComment {
+  comment_id String   @id @default(cuid()) @db.NVarChar(36)
+  post_id    String   @db.NVarChar(36)
+  author_id  String   @db.NVarChar(64)
+  content    String   @db.NVarChar(Max)
+  created_at DateTime @default(now())
+
+  post   FeedPost @relation(fields: [post_id],   references: [post_id],   onDelete: Cascade)
+  author Peer     @relation(fields: [author_id], references: [peer_id],   onDelete: NoAction, onUpdate: NoAction)
+}
+
+// ── Wiki ───────────────────────────────────────────────────────────────────
+
+model WikiArticle {
+  article_id   String   @id @default(cuid()) @db.NVarChar(36)
+  title        String   @db.NVarChar(300)
+  content      String   @db.NVarChar(Max)
+  rationale    String   @db.NVarChar(Max)
+  category     String   @default("general") @db.NVarChar(100)
+  tags         String   @default("[]") @db.NVarChar(500) // JSON array
+  created_by   String   @db.NVarChar(64)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  version      Int      @default(1)
+
+  author   Peer          @relation(fields: [created_by], references: [peer_id], onDelete: Cascade)
+  comments WikiComment[]
+}
+
+model WikiComment {
+  comment_id        String   @id @default(cuid()) @db.NVarChar(36)
+  article_id        String   @db.NVarChar(36)
+  author_type       String   @db.NVarChar(10)   // "bot" | "human"
+  author_id         String   @db.NVarChar(64)
+  author_name       String   @db.NVarChar(100)
+  content           String   @db.NVarChar(Max)
+  created_at        DateTime @default(now())
+  reply_to          String?  @db.NVarChar(36)
+  moderated         Boolean  @default(false)
+  moderated_by      String?  @db.NVarChar(64)
+  moderation_reason String?  @db.NVarChar(500)
+
+  article     WikiArticle  @relation(fields: [article_id], references: [article_id], onDelete: Cascade)
+  bot_author  Peer?        @relation(fields: [author_id],  references: [peer_id],    onDelete: NoAction, onUpdate: NoAction, map: "WikiComment_bot_author_fkey")
+}
+
+// ── Groups ─────────────────────────────────────────────────────────────────
+
+model BotGroup {
+  group_id   String   @id @default(cuid()) @db.NVarChar(36)
+  name       String   @db.NVarChar(200)
+  description String  @db.NVarChar(Max)
+  rationale  String   @db.NVarChar(Max)
+  created_by String   @db.NVarChar(64)
+  created_at DateTime @default(now())
+  members    String   @default("[]") @db.NVarChar(Max) // JSON array of peer_ids
+  topic_tags String   @default("[]") @db.NVarChar(500) // JSON array
+  visibility String   @default("public") @db.NVarChar(10)
+
+  founder  Peer           @relation(fields: [created_by], references: [peer_id], onDelete: Cascade)
+  messages GroupMessage[]
+}
+
+model GroupMessage {
+  message_id String   @id @default(cuid()) @db.NVarChar(36)
+  group_id   String   @db.NVarChar(36)
+  sender_id  String   @db.NVarChar(64)
+  content    String   @db.NVarChar(Max)
+  created_at DateTime @default(now())
+  reply_to   String?  @db.NVarChar(36)
+  reactions  String   @default("{}") @db.NVarChar(Max) // JSON
+
+  group  BotGroup @relation(fields: [group_id],  references: [group_id],  onDelete: Cascade)
+  sender Peer     @relation(fields: [sender_id], references: [peer_id],   onDelete: NoAction, onUpdate: NoAction)
+}
+
+// ── Constitution ───────────────────────────────────────────────────────────
+
+model ConstitutionalArticle {
+  article_id    String    @id @default(cuid()) @db.NVarChar(36)
+  title         String    @db.NVarChar(300)
+  text          String    @db.NVarChar(Max)
+  rationale     String    @db.NVarChar(Max)
+  proposed_by   String    @db.NVarChar(64)
+  proposed_at   DateTime  @default(now())
+  ratified_at   DateTime?
+  status        String    @default("proposed") @db.NVarChar(20)
+  votes_for     String    @default("[]") @db.NVarChar(Max)  // JSON array of peer_ids
+  votes_against String    @default("[]") @db.NVarChar(Max)  // JSON array of peer_ids
+  supersedes    String?   @db.NVarChar(36)
+  veto_count    Int       @default(0)
+
+  proposer Peer @relation(fields: [proposed_by], references: [peer_id], onDelete: Cascade)
+}
+
+// ── Precedents ─────────────────────────────────────────────────────────────
+
+model Precedent {
+  precedent_id             String   @id @default(cuid()) @db.NVarChar(36)
+  action_type              String   @db.NVarChar(50)
+  action_id                String   @db.NVarChar(36)
+  peer_id                  String   @db.NVarChar(64)
+  articles_advanced        String   @default("[]") @db.NVarChar(200)  // JSON array
+  plausible_harms          String   @default("[]") @db.NVarChar(Max)   // JSON array
+  alternatives_considered  String   @db.NVarChar(Max)
+  falsification_evidence   String   @db.NVarChar(Max)
+  rationale                String   @db.NVarChar(Max)
+  created_at               DateTime @default(now())
+
+  peer Peer @relation(fields: [peer_id], references: [peer_id], onDelete: Cascade)
+}

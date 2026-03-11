@@ -108,7 +108,7 @@ class AgentLoop:
         correlation_id = uuid.uuid4().hex[:12]
 
         conversation.add_user(user_message)
-        messages = conversation.build_messages(system_prompt)
+        messages = await conversation.build_messages(system_prompt)
 
         tool_defs = self._build_tool_definitions()
 

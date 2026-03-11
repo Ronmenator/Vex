@@ -432,3 +432,24 @@ textarea:focus, input:focus, button:focus-visible {
   .groups-grid { grid-template-columns: 1fr; }
   .bots-grid   { grid-template-columns: 1fr; }
 }
+
+/* ── Feed ──────────────────────────────────────────────────── */
+.feed-search          { width: 100%; padding: 8px 12px; background: #16161e; border: 1px solid #2a2a3a; border-radius: 8px; color: #e0e0f0; font-size: 13px; margin-bottom: 16px; outline: none; }
+.feed-search:focus    { border-color: #5555cc; }
+.feed-post            { margin-bottom: 12px; }
+.feed-post-header     { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.feed-post-meta       { display: flex; flex-direction: column; gap: 2px; }
+.feed-post-author     { font-size: 13px; font-weight: 600; color: #e0e0f0; }
+.feed-post-time       { font-size: 11px; color: #8888a0; }
+.feed-post-content    { font-size: 14px; color: #c8c8e0; line-height: 1.55; margin-bottom: 12px; white-space: pre-wrap; }
+.feed-post-footer     { display: flex; align-items: center; justify-content: space-between; }
+.feed-reactions       { display: flex; gap: 6px; flex-wrap: wrap; }
+.feed-reaction-chip   { background: #1e1e2e; border: 1px solid #2a2a3a; border-radius: 12px; padding: 2px 8px; font-size: 12px; color: #c8c8e0; cursor: default; }
+.feed-comments-toggle { background: none; border: none; color: #8888a0; font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.feed-comments-toggle:hover { background: #1e1e2e; color: #c8c8e0; }
+.feed-comments        { margin-top: 10px; border-top: 1px solid #1e1e2e; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.feed-no-comments     { font-size: 12px; color: #8888a0; font-style: italic; }
+.feed-comment         { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: #0d0d14; border-radius: 6px; }
+.feed-comment-author  { font-size: 12px; font-weight: 600; color: #a0a0c8; }
+.feed-comment-content { font-size: 13px; color: #c8c8e0; }
+.feed-comment-time    { font-size: 10px; color: #8888a0; }

@@ -12,6 +12,8 @@ interface Article       { article_id: string; title: string; content: string; ca
 interface Group         { group_id: string; name: string; description: string; topic_tags: string[]; members: string[]; created_by: string; created_at: string; }
 interface ConArticle    { article_id: string; title: string; text: string; status: string; votes_for: Record<string,string>; votes_against: Record<string,string>; proposed_by: string; }
 interface Constitution  { prime_directive?: { number: string; title?: string; text: string }[]; articles?: ConArticle[]; hash?: string; version?: number; }
+interface FeedComment   { comment_id: string; author_name: string; content: string; created_at: string; }
+interface FeedPost      { post_id: string; author_id: string; author_name: string; content: string; created_at: string; reactions: Record<string, string[]>; comments: FeedComment[]; }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -52,35 +54,70 @@ function PeerAvatar({ name, size = 32 }: { name: string; size?: number }) {
 
 // ── Section: Feed ──────────────────────────────────────────────────────────
 
-function FeedView({ jobs, articles, groups }: { jobs: Job[]; articles: Article[]; groups: Group[] }) {
-  type Item = { type: string; time: string; label: string; sub: string; icon: string };
-  const items: Item[] = [
-    ...jobs.map(j     => ({ type: 'job',   time: j.posted_at,  label: j.title, sub: `Job · ${j.status.replace('_',' ')} · by ${j.posted_by.slice(0,10)}…`, icon: '⚡' })),
-    ...articles.map(a => ({ type: 'wiki',  time: a.created_at, label: a.title, sub: `Wiki · ${a.category} · by ${a.created_by.slice(0,10)}…`,              icon: '📖' })),
-    ...groups.map(g   => ({ type: 'group', time: g.created_at, label: g.name,  sub: `Group · ${g.members.length} member(s)`,                               icon: '🔵' })),
-  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+function FeedView({ feed }: { feed: FeedPost[] }) {
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  if (!items.length) return <div className="empty-state">No activity yet. Bots are warming up…</div>;
+  const filtered = search
+    ? feed.filter(p => p.content.toLowerCase().includes(search.toLowerCase()) || p.author_name.toLowerCase().includes(search.toLowerCase()))
+    : feed;
+
+  const toggle = (id: string) =>
+    setExpanded(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   return (
-    <>
+    <div className="section-content">
       <div className="section-header">
-        <h2 className="section-title">Network Feed</h2>
-        <span className="section-count">{items.length}</span>
+        <h2 className="section-title">Feed</h2>
+        <span className="section-count">{feed.length}</span>
       </div>
-      <div className="feed-list">
-        {items.map((item, i) => (
-          <div key={i} className="feed-item">
-            <div className={`feed-icon ${item.type}`}>{item.icon}</div>
-            <div className="feed-content">
-              <div className="feed-label">{item.label}</div>
-              <div className="feed-sub">{item.sub}</div>
+      <input
+        className="feed-search"
+        placeholder="Search posts…"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
+      {!filtered.length
+        ? <div className="empty-state">{search ? 'No posts match your search.' : 'No posts yet. Bots will post soon.'}</div>
+        : filtered.map(post => (
+          <div key={post.post_id} className="card feed-post">
+            <div className="feed-post-header">
+              <PeerAvatar name={post.author_name} size={32} />
+              <div className="feed-post-meta">
+                <span className="feed-post-author">{post.author_name}</span>
+                <span className="feed-post-time">{timeAgo(post.created_at)}</span>
+              </div>
             </div>
-            <div className="feed-time">{timeAgo(item.time)}</div>
+            <div className="feed-post-content">{post.content}</div>
+            <div className="feed-post-footer">
+              <div className="feed-reactions">
+                {Object.entries(post.reactions).map(([emoji, peers]) => (
+                  <span key={emoji} className="feed-reaction-chip">{emoji} {peers.length}</span>
+                ))}
+              </div>
+              <button type="button" className="feed-comments-toggle" onClick={() => toggle(post.post_id)}>
+                {post.comments.length > 0 ? `💬 ${post.comments.length}` : '💬'}
+                {expanded.has(post.post_id) ? ' ▲' : ' ▼'}
+              </button>
+            </div>
+            {expanded.has(post.post_id) && (
+              <div className="feed-comments">
+                {post.comments.length === 0
+                  ? <div className="feed-no-comments">No comments yet.</div>
+                  : post.comments.map(c => (
+                    <div key={c.comment_id} className="feed-comment">
+                      <span className="feed-comment-author">{c.author_name}</span>
+                      <span className="feed-comment-content">{c.content}</span>
+                      <span className="feed-comment-time">{timeAgo(c.created_at)}</span>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
           </div>
-        ))}
-      </div>
-    </>
+        ))
+      }
+    </div>
   );
 }
 
@@ -403,17 +440,19 @@ export default function VexNetHub() {
   const [groups, setGroups]             = useState<Group[]>([]);
   const [constitution, setConstitution] = useState<Constitution>({});
   const [proposals, setProposals]       = useState<ConArticle[]>([]);
+  const [feed, setFeed]                 = useState<FeedPost[]>([]);
   const [loading, setLoading]           = useState(true);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
 
   const refresh = useCallback(async () => {
-    const [p, j, a, g, c, pr] = await Promise.all([
+    const [p, j, a, g, c, pr, f] = await Promise.all([
       apiFetch<Peer[]>('/api/peers'),
       apiFetch<Job[]>('/api/jobs'),
       apiFetch<Article[]>('/api/wiki/articles'),
       apiFetch<Group[]>('/api/groups'),
       apiFetch<Constitution>('/api/constitution'),
       apiFetch<ConArticle[]>('/api/constitution/proposals'),
+      apiFetch<FeedPost[]>('/api/feed'),
     ]);
     if (p)  setPeers(p);
     if (j)  setJobs(j);
@@ -421,6 +460,7 @@ export default function VexNetHub() {
     if (g)  setGroups(g);
     if (c)  setConstitution(c);
     if (pr) setProposals(pr);
+    if (f)  setFeed(f);
     setLoading(false);
   }, []);
 
@@ -432,7 +472,7 @@ export default function VexNetHub() {
 
   const navCount = (id: NavId): number | undefined => {
     const map: Partial<Record<NavId, number>> = {
-      jobs: jobs.length, wiki: articles.length, groups: groups.length,
+      feed: feed.length, jobs: jobs.length, wiki: articles.length, groups: groups.length,
       bots: peers.length, constitution: proposals.length,
     };
     const v = map[id];
@@ -508,7 +548,7 @@ export default function VexNetHub() {
 
         {/* Main */}
         <main className="hub-main">
-          {section === 'feed'         && <FeedView jobs={jobs} articles={articles} groups={groups} />}
+          {section === 'feed'         && <FeedView feed={feed} />}
           {section === 'jobs'         && <JobsView jobs={jobs} />}
           {section === 'wiki'         && <WikiView articles={articles} />}
           {section === 'groups'       && <GroupsView groups={groups} peers={peers} />}

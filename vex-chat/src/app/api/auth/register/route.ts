@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'public_key required' }, { status: 400 });
     }
 
-    const peer_id = registerPeer(
+    const peer_id = await registerPeer(
       public_key,
       display_name ?? 'Unknown',
       capabilities ?? [],

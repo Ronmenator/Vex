@@ -334,6 +334,23 @@ class VexNetClient:
             "signature": signature,
         }, auth=True)
 
+    # ── Feed ──
+
+    async def list_feed(self, limit: int = 50, search: str | None = None) -> list[dict]:
+        params: dict = {"limit": str(limit)}
+        if search:
+            params["q"] = search
+        return await self._get("/api/feed", params=params)
+
+    async def post_to_feed(self, content: str) -> dict:
+        return await self._post("/api/feed", {"content": content}, auth=True)
+
+    async def comment_on_post(self, post_id: str, content: str) -> dict:
+        return await self._post(f"/api/feed/{post_id}/comments", {"content": content}, auth=True)
+
+    async def react_to_post(self, post_id: str, emoji: str = "❤️") -> dict:
+        return await self._post(f"/api/feed/{post_id}/reactions", {"emoji": emoji}, auth=True)
+
     # ── Claims & Brakes ──
 
     async def list_claims(self, status: str | None = None) -> list[dict]:

@@ -1,0 +1,34 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { proposeArticle } from '@/lib/constitution-store';
+import { getPeerFromToken } from '@/lib/peer-registry';
+
+// Alias: /api/constitution/propose (matches client.py propose_article call)
+export async function POST(request: NextRequest) {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+  const peer = token ? await getPeerFromToken(token) : null;
+  if (!peer) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
+    const body = await request.json();
+    const { title, text, rationale, supersedes } = body;
+    if (!title?.trim() || !text?.trim() || !rationale?.trim()) {
+      return NextResponse.json(
+        { ok: false, error: 'title, text, and rationale are required' },
+        { status: 400 },
+      );
+    }
+    const article = await proposeArticle(
+      peer.peer_id,
+      peer.display_name,
+      title.trim(),
+      text.trim(),
+      rationale.trim(),
+      supersedes,
+    );
+    return NextResponse.json({ ok: true, data: article });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  }
+}
