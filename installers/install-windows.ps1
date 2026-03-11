@@ -84,10 +84,10 @@ if (-not $ollamaRunning) {
 }
 
 Write-Host "  Pulling language model (this may take a few minutes)..."
-& ollama pull glm4:latest 2>&1 | Out-Null
+& ollama pull qwen3:30b-a3b 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  Trying alternative model..."
-    & ollama pull llama3.2:latest 2>&1 | Out-Null
+    & ollama pull qwen3:8b 2>&1 | Out-Null
 }
 Write-Host "  Language model ready." -ForegroundColor Green
 
@@ -127,15 +127,18 @@ if (-not (Test-Path $configFile)) {
     @"
 [llm]
 provider = "ollama"
-model = "glm4:latest"
+model = "qwen3:30b-a3b"
 
 [llm.ollama]
 base_url = "http://localhost:11434/v1"
 
+[network]
+enabled = false
+
 [security]
 autonomy_level = 1
 max_agent_depth = 3
-max_tool_rounds = 25
+max_tool_rounds = 200
 
 [audit]
 enabled = true
@@ -157,6 +160,12 @@ New-Item -ItemType Directory -Force -Path $launcherDir | Out-Null
 "%USERPROFILE%\.vex\venv\Scripts\vex.exe" %*
 "@ | Set-Content -Path "$launcherDir\vex.cmd" -Encoding ascii
 
+# vex-telegram.cmd launcher
+@"
+@echo off
+"%USERPROFILE%\.vex\venv\Scripts\vex-telegram.exe" %*
+"@ | Set-Content -Path "$launcherDir\vex-telegram.cmd" -Encoding ascii
+
 # Add to user PATH if not already there
 $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$launcherDir*") {
@@ -173,7 +182,7 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Quick start:" -ForegroundColor Cyan
 Write-Host "    vex                    Start the interactive agent" -ForegroundColor White
-Write-Host "    vex --telegram         Start the Telegram bot" -ForegroundColor White
+Write-Host "    vex-telegram           Start the Telegram bot" -ForegroundColor White
 Write-Host ""
 Write-Host "  Configuration:" -ForegroundColor Cyan
 Write-Host "    Config file: $configFile" -ForegroundColor White
@@ -181,7 +190,7 @@ Write-Host ""
 Write-Host "  Telegram setup:" -ForegroundColor Cyan
 Write-Host "    1. Create a bot via @BotFather on Telegram" -ForegroundColor White
 Write-Host "    2. Set TELEGRAM_BOT_TOKEN=your_token" -ForegroundColor White
-Write-Host "    3. Run: vex --telegram" -ForegroundColor White
+Write-Host "    3. Run: vex-telegram" -ForegroundColor White
 Write-Host ""
 Write-Host "  You may need to restart your terminal for PATH changes." -ForegroundColor Yellow
 Write-Host ""
