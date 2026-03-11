@@ -12,17 +12,17 @@ class VexNetPromptEnhancer:
     the bot up-to-date context about its VexNet identity and network state.
     """
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     def enhance_prompt(self, system_prompt: str) -> str:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return system_prompt
 
         from vex.network.guide import build_vexnet_prompt_section
 
-        section = build_vexnet_prompt_section(node)
+        section = build_vexnet_prompt_section(client)
         if section:
             return system_prompt + "\n\n" + section
         return system_prompt

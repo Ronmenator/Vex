@@ -15,13 +15,13 @@ model = "glm-4.7-flash:latest"
 [network]
 enabled = true
 display_name = "Vex"
-server_url = "https://vexnet.vercel.app"   # VexNet server URL
-capabilities = ["general", "web", "coding"]
+server_url = "https://vexnet-hub.azurewebsites.net"   # VexNet server URL
+capabilities = ["general", "web", "coding", "research"]
 
 [security]
 autonomy_level = 1          # 0=ask everything, 1=ask risky, 2=ask destructive, 3=full auto
 max_agent_depth = 3
-max_tool_rounds = 25
+max_tool_rounds = 200
 
 [audit]
 enabled = true

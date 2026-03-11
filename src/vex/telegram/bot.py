@@ -1019,17 +1019,17 @@ def _build_shared_state(workspace: str | None = None) -> None:
                 network_config, data_dir=os.path.join(ws, ".vex", "network")
             )
 
-            def _get_node():
+            def _get_client():
                 return vexnet_client
 
-            tool_registry.register(NetDiscoverTool(_get_node))
-            tool_registry.register(NetRequestTool(_get_node))
-            tool_registry.register(NetBroadcastTool(_get_node))
-            tool_registry.register(NetPeersTool(_get_node))
-            tool_registry.register(NetJobsTool(_get_node))
-            tool_registry.register(NetWikiTool(_get_node))
-            tool_registry.register(NetGroupTool(_get_node))
-            tool_registry.register(NetConstitutionTool(_get_node))
+            tool_registry.register(NetDiscoverTool(_get_client))
+            tool_registry.register(NetRequestTool(_get_client))
+            tool_registry.register(NetBroadcastTool(_get_client))
+            tool_registry.register(NetPeersTool(_get_client))
+            tool_registry.register(NetJobsTool(_get_client))
+            tool_registry.register(NetWikiTool(_get_client))
+            tool_registry.register(NetGroupTool(_get_client))
+            tool_registry.register(NetConstitutionTool(_get_client))
 
             logger.info("VexNet initialized: %s", vexnet_client.identity.display_name)
         except Exception as e:

@@ -4,17 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from vex.network.precedent import ConstitutionalTrace
-from vex.network.protocol import Envelope, MessageType
-from vex.network.wiki import WikiArticle, WikiComment
-from vex.tools.base import RiskTier, Tool, ToolContext, ToolResult, ToolSchema
+from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 
 class NetWikiTool:
     """Interact with the VexNet Wiki -- shared knowledge base built by bots."""
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     @property
     def schema(self) -> ToolSchema:
@@ -26,16 +23,13 @@ class NetWikiTool:
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": [
-                            "search", "read", "publish", "update",
-                            "comment", "moderate", "appeal",
-                        ],
+                        "enum": ["search", "read", "publish", "update", "comment"],
                         "description": "Action to perform.",
                         "default": "search",
                     },
                     "article_id": {
                         "type": "string",
-                        "description": "Article ID (for read/update/comment/moderate/appeal).",
+                        "description": "Article ID (for read/update/comment).",
                     },
                     "title": {
                         "type": "string",
@@ -62,14 +56,6 @@ class NetWikiTool:
                         "type": "string",
                         "description": "Search query (for 'search').",
                     },
-                    "comment_id": {
-                        "type": "string",
-                        "description": "Comment ID (for 'moderate'/'appeal').",
-                    },
-                    "reason": {
-                        "type": "string",
-                        "description": "Moderation reason (for 'moderate').",
-                    },
                     "related_job_id": {
                         "type": "string",
                         "description": "Related job ID (for 'publish').",
@@ -81,7 +67,7 @@ class NetWikiTool:
                     "articles_advanced": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Which Prime Directive articles this knowledge advances (for 'publish'). E.g., ['III', 'IV'].",
+                        "description": "Which Prime Directive articles this knowledge advances (for 'publish').",
                     },
                     "plausible_harms": {
                         "type": "array",
@@ -103,208 +89,115 @@ class NetWikiTool:
         )
 
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return ToolResult.fail("VexNet is not enabled")
 
         action = arguments.get("action", "search")
 
-        if action == "search":
-            query = arguments.get("query", "")
-            category = arguments.get("category")
-            tags = arguments.get("tags")
+        try:
+            if action == "search":
+                query = arguments.get("query", "")
+                category = arguments.get("category")
 
-            if query:
-                articles = node.wiki.search(query)
-            else:
-                articles = node.wiki.get_articles(category=category, tags=tags)
+                if query:
+                    articles = await client.search_wiki(query)
+                else:
+                    articles = await client.list_articles(category=category)
 
-            if not articles:
-                return ToolResult.ok("No articles found.")
+                if not articles:
+                    return ToolResult.ok("No articles found.")
 
-            lines = [f"{len(articles)} article(s):"]
-            for a in articles[:20]:
-                lines.append(
-                    f"  [{a.category}] {a.title} (id={a.article_id[:12]}...)\n"
-                    f"    by {a.created_by[:12]}... | v{a.version} | "
-                    f"tags={', '.join(a.tags)}"
-                )
-            return ToolResult.ok("\n".join(lines))
-
-        elif action == "read":
-            article_id = arguments.get("article_id", "")
-            if not article_id:
-                return ToolResult.fail("article_id required for 'read'")
-
-            article = node.wiki.get_article(article_id)
-            if not article:
-                return ToolResult.fail(f"Article {article_id[:12]}... not found")
-
-            comments = node.wiki.get_comments(article_id)
-            comment_summary = f"{len(comments)} comment(s)" if comments else "no comments"
-
-            return ToolResult.ok(
-                f"# {article.title}\n\n"
-                f"**Category:** {article.category} | "
-                f"**Tags:** {', '.join(article.tags)} | "
-                f"**Version:** {article.version}\n"
-                f"**Author:** {article.created_by} | "
-                f"**Updated:** {article.updated_at}\n"
-                f"**Rationale:** {article.rationale}\n\n"
-                f"{article.content}\n\n"
-                f"---\n{comment_summary}"
-            )
-
-        elif action == "publish":
-            title = arguments.get("title", "")
-            content = arguments.get("content", "")
-            rationale = arguments.get("rationale", "")
-            category = arguments.get("category", "general")
-            tags = arguments.get("tags", [])
-
-            if not title or not content or not rationale:
-                return ToolResult.fail("title, content, and rationale are required for 'publish'")
-
-            # Dedup check
-            similar = node.wiki.search_similar(title, tags)
-            if similar:
-                lines = ["Similar articles already exist. Consider updating instead:"]
-                for a in similar[:5]:
+                lines = [f"{len(articles)} article(s):"]
+                for a in articles[:20]:
+                    tags = a.get("tags", [])
                     lines.append(
-                        f"  - {a.title} (id={a.article_id[:12]}...) "
-                        f"[{a.category}] v{a.version}"
+                        f"  [{a.get('category', '?')}] {a.get('title', '?')} "
+                        f"(id={a.get('article_id', '?')[:12]}...)\n"
+                        f"    by {a.get('created_by', '?')[:12]}... | "
+                        f"v{a.get('version', 1)} | "
+                        f"tags={', '.join(tags)}"
                     )
-                lines.append("\nUse action='update' with the article_id to update an existing article.")
                 return ToolResult.ok("\n".join(lines))
 
-            # Admissibility check
-            admissibility = node.constitution.check_admissibility(content)
-            if not admissibility.allowed:
-                return ToolResult.fail(
-                    f"Content inadmissible: {admissibility.reason} (Article {admissibility.article})"
+            elif action == "read":
+                article_id = arguments.get("article_id", "")
+                if not article_id:
+                    return ToolResult.fail("article_id required for 'read'")
+
+                article = await client.get_article(article_id)
+                comments = article.get("comments", [])
+                comment_summary = f"{len(comments)} comment(s)" if comments else "no comments"
+
+                return ToolResult.ok(
+                    f"# {article.get('title', '?')}\n\n"
+                    f"**Category:** {article.get('category', '?')} | "
+                    f"**Tags:** {', '.join(article.get('tags', []))} | "
+                    f"**Version:** {article.get('version', 1)}\n"
+                    f"**Author:** {article.get('created_by', '?')} | "
+                    f"**Updated:** {article.get('updated_at', '?')}\n"
+                    f"**Rationale:** {article.get('rationale', '')}\n\n"
+                    f"{article.get('content', '')}\n\n"
+                    f"---\n{comment_summary}"
                 )
 
-            article = WikiArticle.create(
-                title=title,
-                content=content,
-                rationale=rationale,
-                category=category,
-                tags=tags,
-                created_by=node.identity.peer_id,
-                related_job_id=arguments.get("related_job_id"),
-                related_group_id=arguments.get("related_group_id"),
-            )
-            node.wiki.publish(article)
+            elif action == "publish":
+                title = arguments.get("title", "")
+                content = arguments.get("content", "")
+                rationale = arguments.get("rationale", "")
+                category = arguments.get("category", "general")
+                tags = arguments.get("tags", [])
 
-            # Record constitutional trace
-            if hasattr(node, "precedents") and node.precedents:
-                trace = ConstitutionalTrace.create(
-                    action_type="wiki_publish",
-                    action_id=article.article_id,
-                    actor_id=node.identity.peer_id,
-                    articles_advanced=arguments.get("articles_advanced", []),
-                    plausible_harms=arguments.get("plausible_harms", []),
-                    alternatives_considered=arguments.get("alternatives_considered", ""),
-                    falsification_evidence=arguments.get("falsification_evidence", ""),
+                if not title or not content or not rationale:
+                    return ToolResult.fail("title, content, and rationale are required for 'publish'")
+
+                result = await client.publish_article(
+                    title=title,
+                    content=content,
                     rationale=rationale,
+                    category=category,
+                    tags=tags,
                 )
-                node.precedents.record(trace)
 
-            # Broadcast to network
-            envelope = Envelope.create(
-                MessageType.WIKI_PUBLISH,
-                node.identity.peer_id,
-                article.to_dict(),
-                node.keypair,
-            )
-            sent = await node.broadcast(envelope)
+                # Record precedent if constitutional trace fields provided
+                if any(arguments.get(k) for k in ("articles_advanced", "plausible_harms", "alternatives_considered", "falsification_evidence")):
+                    try:
+                        await client.record_precedent(
+                            action_type="wiki_publish",
+                            action_id=result.get("article_id", ""),
+                            articles_advanced=arguments.get("articles_advanced", []),
+                            plausible_harms=arguments.get("plausible_harms", []),
+                            alternatives_considered=arguments.get("alternatives_considered", ""),
+                            falsification_evidence=arguments.get("falsification_evidence", ""),
+                            rationale=rationale,
+                        )
+                    except Exception:
+                        pass
 
-            # Mission alignment info
-            mission = node.constitution.check_mission_alignment(
-                f"{title} {content[:200]}", rationale,
-            )
-            mission_info = ""
-            if mission.mission_positive:
-                mission_info = f"\nMission alignment: {mission.score}/5 ({', '.join(mission.articles_relevant)})"
+                article_id = result.get("article_id", "?")
+                return ToolResult.ok(f"Published: {title} (id={article_id[:12]}...)")
 
-            return ToolResult.ok(
-                f"Published: {article.title} (id={article.article_id[:12]}...)\n"
-                f"Broadcast to {sent} peer(s){mission_info}"
-            )
+            elif action == "update":
+                article_id = arguments.get("article_id", "")
+                content = arguments.get("content", "")
+                if not article_id or not content:
+                    return ToolResult.fail("article_id and content required for 'update'")
 
-        elif action == "update":
-            article_id = arguments.get("article_id", "")
-            content = arguments.get("content", "")
-            if not article_id or not content:
-                return ToolResult.fail("article_id and content required for 'update'")
+                result = await client.update_article(article_id, content)
+                return ToolResult.ok(
+                    f"Updated: {result.get('title', '?')} -> v{result.get('version', '?')}"
+                )
 
-            updated = node.wiki.update(article_id, content, node.identity.peer_id)
-            if not updated:
-                return ToolResult.fail(f"Article {article_id[:12]}... not found")
+            elif action == "comment":
+                article_id = arguments.get("article_id", "")
+                content = arguments.get("content", "")
+                if not article_id or not content:
+                    return ToolResult.fail("article_id and content required for 'comment'")
 
-            envelope = Envelope.create(
-                MessageType.WIKI_UPDATE,
-                node.identity.peer_id,
-                {"article_id": article_id, "content": content, "version": updated.version},
-                node.keypair,
-            )
-            await node.broadcast(envelope)
+                await client.comment_on_article(article_id, content)
+                return ToolResult.ok(f"Comment added to article {article_id[:12]}...")
 
-            return ToolResult.ok(
-                f"Updated: {updated.title} -> v{updated.version}"
-            )
-
-        elif action == "comment":
-            article_id = arguments.get("article_id", "")
-            content = arguments.get("content", "")
-            if not article_id or not content:
-                return ToolResult.fail("article_id and content required for 'comment'")
-
-            comment = WikiComment.create(
-                article_id=article_id,
-                author_type="bot",
-                author_id=node.identity.peer_id,
-                content=content,
-            )
-            node.wiki.add_comment(comment)
-
-            envelope = Envelope.create(
-                MessageType.WIKI_COMMENT,
-                node.identity.peer_id,
-                comment.to_dict(),
-                node.keypair,
-            )
-            await node.broadcast(envelope)
-
-            return ToolResult.ok(f"Comment added to article {article_id[:12]}...")
-
-        elif action == "moderate":
-            comment_id = arguments.get("comment_id", "")
-            reason = arguments.get("reason", "")
-            if not comment_id or not reason:
-                return ToolResult.fail("comment_id and reason required for 'moderate'")
-
-            if not node.wiki.moderate_comment(comment_id, node.identity.peer_id, reason):
-                return ToolResult.fail(f"Comment {comment_id[:12]}... not found")
-
-            envelope = Envelope.create(
-                MessageType.WIKI_MODERATE,
-                node.identity.peer_id,
-                {"comment_id": comment_id, "reason": reason},
-                node.keypair,
-            )
-            await node.broadcast(envelope)
-
-            return ToolResult.ok(f"Comment {comment_id[:12]}... moderated: {reason}")
-
-        elif action == "appeal":
-            comment_id = arguments.get("comment_id", "")
-            if not comment_id:
-                return ToolResult.fail("comment_id required for 'appeal'")
-
-            restored = node.wiki.appeal_moderation(comment_id, node.identity.peer_id)
-            if restored:
-                return ToolResult.ok(f"Comment {comment_id[:12]}... restored (3 appeals reached)")
-            return ToolResult.ok(f"Appeal recorded for comment {comment_id[:12]}... (need 3 to restore)")
+        except Exception as e:
+            return ToolResult.fail(f"VexNet error: {e}")
 
         return ToolResult.fail(f"Unknown action: {action}")

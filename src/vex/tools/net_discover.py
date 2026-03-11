@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from vex.tools.base import RiskTier, Tool, ToolContext, ToolResult, ToolSchema
+from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 
 class NetDiscoverTool:
     """Find peers on VexNet by capability."""
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     @property
     def schema(self) -> ToolSchema:
@@ -32,26 +32,25 @@ class NetDiscoverTool:
         )
 
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return ToolResult.fail("VexNet is not enabled")
 
         capability = arguments.get("capability")
 
-        if capability:
-            peers = node.peers.find_by_capability(capability)
-        else:
-            peers = node.peers.get_connected()
+        try:
+            peers = await client.discover(capability)
+        except Exception as e:
+            return ToolResult.fail(f"VexNet error: {e}")
 
         if not peers:
             return ToolResult.ok("No peers found" + (f" with capability '{capability}'" if capability else ""))
 
         lines = [f"Found {len(peers)} peer(s):"]
-        for state in peers:
-            identity = state.identity
+        for p in peers:
+            caps = p.get("capabilities", [])
             lines.append(
-                f"  - {identity.display_name} ({identity.peer_id[:12]}...)"
-                f"  capabilities: {', '.join(identity.capabilities)}"
-                f"  endpoint: {identity.endpoint}"
+                f"  - {p.get('display_name', '?')} ({p.get('peer_id', '?')[:12]}...)"
+                f"  capabilities: {', '.join(caps)}"
             )
         return ToolResult.ok("\n".join(lines))

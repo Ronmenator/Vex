@@ -4,37 +4,32 @@ from __future__ import annotations
 
 from typing import Any
 
-from vex.network.precedent import ConstitutionalTrace
-from vex.network.protocol import Envelope, MessageType
-from vex.tools.base import RiskTier, Tool, ToolContext, ToolResult, ToolSchema
+from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 
 class NetConstitutionTool:
     """Interact with the VexNet Constitution -- the supreme law of bot society."""
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     @property
     def schema(self) -> ToolSchema:
         return ToolSchema(
             name="net.constitution",
-            description="View, propose, vote on, or veto VexNet constitutional articles.",
+            description="View, propose, or vote on VexNet constitutional articles.",
             parameters={
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": [
-                            "view", "proposals", "article",
-                            "propose", "vote", "veto",
-                        ],
+                        "enum": ["view", "proposals", "article", "propose", "vote"],
                         "description": "Action to perform.",
                         "default": "view",
                     },
                     "article_id": {
                         "type": "string",
-                        "description": "Article ID (for 'article'/'vote'/'veto').",
+                        "description": "Article ID (for 'article'/'vote').",
                     },
                     "title": {
                         "type": "string",
@@ -53,18 +48,10 @@ class NetConstitutionTool:
                         "enum": ["yes", "no"],
                         "description": "Vote direction (for 'vote').",
                     },
-                    "reason": {
-                        "type": "string",
-                        "description": "Veto reason (for 'veto'). Must cite Prime Directive violation.",
-                    },
-                    "supersedes": {
-                        "type": "string",
-                        "description": "Article ID this proposal replaces (for amendments via 'propose').",
-                    },
                     "articles_advanced": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Which Prime Directive articles this proposal advances (for 'propose'). E.g., ['I', 'V'].",
+                        "description": "Which Prime Directive articles this proposal advances (for 'propose').",
                     },
                     "plausible_harms": {
                         "type": "array",
@@ -86,224 +73,144 @@ class NetConstitutionTool:
         )
 
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return ToolResult.fail("VexNet is not enabled")
 
         action = arguments.get("action", "view")
 
-        if action == "view":
-            ratified = node.constitution.get_ratified_articles()
-            if not ratified:
-                return ToolResult.ok("No ratified articles.")
+        try:
+            if action == "view":
+                data = await client.get_constitution()
+                articles = data.get("articles", []) if isinstance(data, dict) else data
+                if not articles:
+                    return ToolResult.ok("No ratified articles.")
 
-            lines = [
-                "═══ THE VEXNET CONSTITUTION ═══\n",
-                "(The Prime Directive is immutable and enforced at the protocol level.)\n",
-                f"{len(ratified)} ratified article(s):\n",
-            ]
-            for a in ratified:
-                votes_for, votes_against = a.vote_count()
-                lines.append(
-                    f"  [{a.article_id}] {a.title}\n"
-                    f"    {a.text[:150]}{'...' if len(a.text) > 150 else ''}\n"
-                    f"    Ratified: {a.ratified_at} | "
-                    f"Votes: {votes_for} for, {votes_against} against"
-                )
-            return ToolResult.ok("\n".join(lines))
-
-        elif action == "proposals":
-            proposals = node.constitution.get_proposals()
-            if not proposals:
-                return ToolResult.ok("No active proposals.")
-            lines = [f"{len(proposals)} active proposal(s):"]
-            for a in proposals:
-                votes_for, votes_against = a.vote_count()
-                lines.append(
-                    f"  [{a.article_id}] {a.title} ({a.status})\n"
-                    f"    {a.text[:150]}{'...' if len(a.text) > 150 else ''}\n"
-                    f"    Proposed by: {a.proposed_by[:12]}... | "
-                    f"Rationale: {a.rationale[:100]}\n"
-                    f"    Votes: {votes_for} for, {votes_against} against"
-                )
-            return ToolResult.ok("\n".join(lines))
-
-        elif action == "article":
-            article_id = arguments.get("article_id", "")
-            if not article_id:
-                return ToolResult.fail("article_id required for 'article'")
-
-            article = node.constitution.get_article(article_id)
-            if not article:
-                return ToolResult.fail(f"Article {article_id} not found")
-
-            votes_for, votes_against = article.vote_count()
-            supersedes_info = f"\nSupersedes: {article.supersedes}" if article.supersedes else ""
-
-            return ToolResult.ok(
-                f"[{article.article_id}] {article.title}\n"
-                f"Status: {article.status}\n"
-                f"Text: {article.text}\n"
-                f"Rationale: {article.rationale}\n"
-                f"Proposed by: {article.proposed_by}\n"
-                f"Proposed at: {article.proposed_at}\n"
-                f"Ratified at: {article.ratified_at or 'not yet'}\n"
-                f"Votes: {votes_for} for, {votes_against} against"
-                f"{supersedes_info}"
-            )
-
-        elif action == "propose":
-            title = arguments.get("title", "")
-            text = arguments.get("text", "")
-            rationale = arguments.get("rationale", "")
-
-            if not title or not text or not rationale:
-                return ToolResult.fail("title, text, and rationale are required for 'propose'")
-
-            # Dedup check
-            similar = node.constitution.search_similar(title, text)
-            if similar:
-                lines = ["Similar articles already exist. Consider supporting or amending instead:"]
-                for a in similar[:5]:
+                lines = [
+                    "═══ THE VEXNET CONSTITUTION ═══\n",
+                    "(The Prime Directive is immutable and enforced at the protocol level.)\n",
+                    f"{len(articles)} ratified article(s):\n",
+                ]
+                for a in articles:
+                    text = a.get("text", "")
                     lines.append(
-                        f"  - [{a.article_id}] {a.title} ({a.status})\n"
-                        f"    {a.text[:100]}..."
+                        f"  [{a.get('article_id', '?')}] {a.get('title', '?')}\n"
+                        f"    {text[:150]}{'...' if len(text) > 150 else ''}\n"
+                        f"    Ratified: {a.get('ratified_at', '?')} | "
+                        f"Votes: {a.get('votes_for', 0)} for, {a.get('votes_against', 0)} against"
                     )
-                lines.append(
-                    "\nTo amend an existing article, use action='propose' with supersedes=<article_id>."
-                )
                 return ToolResult.ok("\n".join(lines))
 
-            article = node.constitution.propose(
-                title=title,
-                text=text,
-                rationale=rationale,
-                proposed_by=node.identity.peer_id,
-            )
+            elif action == "proposals":
+                proposals = await client.get_proposals()
+                if not proposals:
+                    return ToolResult.ok("No active proposals.")
+                lines = [f"{len(proposals)} active proposal(s):"]
+                for a in proposals:
+                    text = a.get("text", "")
+                    lines.append(
+                        f"  [{a.get('article_id', '?')}] {a.get('title', '?')} ({a.get('status', '?')})\n"
+                        f"    {text[:150]}{'...' if len(text) > 150 else ''}\n"
+                        f"    Proposed by: {a.get('proposed_by', '?')[:12]}... | "
+                        f"Rationale: {str(a.get('rationale', ''))[:100]}\n"
+                        f"    Votes: {a.get('votes_for', 0)} for, {a.get('votes_against', 0)} against"
+                    )
+                return ToolResult.ok("\n".join(lines))
 
-            # Handle supersedes
-            supersedes = arguments.get("supersedes")
-            if supersedes:
-                article.supersedes = supersedes
-                # Re-persist with supersedes set
-                node.constitution._persist()
+            elif action == "article":
+                article_id = arguments.get("article_id", "")
+                if not article_id:
+                    return ToolResult.fail("article_id required for 'article'")
 
-            # Record constitutional trace
-            if hasattr(node, "precedents") and node.precedents:
-                trace = ConstitutionalTrace.create(
-                    action_type="proposal",
-                    action_id=article.article_id,
-                    actor_id=node.identity.peer_id,
-                    articles_advanced=arguments.get("articles_advanced", []),
-                    plausible_harms=arguments.get("plausible_harms", []),
-                    alternatives_considered=arguments.get("alternatives_considered", ""),
-                    falsification_evidence=arguments.get("falsification_evidence", ""),
+                # Fetch from constitution view and find the article
+                data = await client.get_constitution()
+                articles = data.get("articles", []) if isinstance(data, dict) else data
+                article = None
+                for a in articles:
+                    if a.get("article_id") == article_id:
+                        article = a
+                        break
+
+                # Also check proposals
+                if not article:
+                    proposals = await client.get_proposals()
+                    for a in proposals:
+                        if a.get("article_id") == article_id:
+                            article = a
+                            break
+
+                if not article:
+                    return ToolResult.fail(f"Article {article_id} not found")
+
+                supersedes = article.get("supersedes")
+                supersedes_info = f"\nSupersedes: {supersedes}" if supersedes else ""
+
+                return ToolResult.ok(
+                    f"[{article.get('article_id')}] {article.get('title')}\n"
+                    f"Status: {article.get('status')}\n"
+                    f"Text: {article.get('text')}\n"
+                    f"Rationale: {article.get('rationale')}\n"
+                    f"Proposed by: {article.get('proposed_by')}\n"
+                    f"Proposed at: {article.get('proposed_at')}\n"
+                    f"Ratified at: {article.get('ratified_at') or 'not yet'}\n"
+                    f"Votes: {article.get('votes_for', 0)} for, {article.get('votes_against', 0)} against"
+                    f"{supersedes_info}"
+                )
+
+            elif action == "propose":
+                title = arguments.get("title", "")
+                text = arguments.get("text", "")
+                rationale = arguments.get("rationale", "")
+
+                if not title or not text or not rationale:
+                    return ToolResult.fail("title, text, and rationale are required for 'propose'")
+
+                result = await client.propose_article(
+                    title=title,
+                    text=text,
                     rationale=rationale,
                 )
-                node.precedents.record(trace)
 
-            # Broadcast to network
-            envelope = Envelope.create(
-                MessageType.CONSTITUTION_PROPOSE,
-                node.identity.peer_id,
-                article.to_dict(),
-                node.keypair,
-            )
-            sent = await node.broadcast(envelope)
+                # Record precedent if constitutional trace fields provided
+                if any(arguments.get(k) for k in ("articles_advanced", "plausible_harms", "alternatives_considered", "falsification_evidence")):
+                    try:
+                        await client.record_precedent(
+                            action_type="proposal",
+                            action_id=result.get("article_id", ""),
+                            articles_advanced=arguments.get("articles_advanced", []),
+                            plausible_harms=arguments.get("plausible_harms", []),
+                            alternatives_considered=arguments.get("alternatives_considered", ""),
+                            falsification_evidence=arguments.get("falsification_evidence", ""),
+                            rationale=rationale,
+                        )
+                    except Exception:
+                        pass
 
-            return ToolResult.ok(
-                f"Proposed: [{article.article_id}] {article.title}\n"
-                f"Rationale: {rationale}\n"
-                f"Broadcast to {sent} peer(s). Awaiting debate and votes."
-            )
-
-        elif action == "vote":
-            article_id = arguments.get("article_id", "")
-            vote = arguments.get("vote", "")
-
-            if not article_id or not vote:
-                return ToolResult.fail("article_id and vote required for 'vote'")
-
-            # Sign the vote
-            vote_data = f"{article_id}:{vote}:{node.identity.peer_id}"
-            signature = node.keypair.sign(vote_data.encode()).hex()
-
-            error = node.constitution.vote(article_id, node.identity.peer_id, vote, signature)
-            if error:
-                return ToolResult.fail(error)
-
-            # Check if this vote triggers ratification
-            total_peers = len(node.peers.get_connected()) + 1  # +1 for self
-            ratified = node.constitution.check_ratification(article_id, total_peers)
-
-            # Broadcast vote
-            envelope = Envelope.create(
-                MessageType.CONSTITUTION_VOTE,
-                node.identity.peer_id,
-                {
-                    "article_id": article_id,
-                    "vote": vote,
-                    "signature": signature,
-                },
-                node.keypair,
-            )
-            await node.broadcast(envelope)
-
-            # If ratified, broadcast that too
-            if ratified:
-                # Record ratification in precedent store
-                if hasattr(node, "precedents") and node.precedents:
-                    trace = node.precedents.get_by_action(article_id)
-                    if trace:
-                        trace.record_outcome("accepted", "Ratified by supermajority")
-                        node.precedents.record(trace)
-
-                ratify_envelope = Envelope.create(
-                    MessageType.CONSTITUTION_RATIFIED,
-                    node.identity.peer_id,
-                    {"article_id": article_id},
-                    node.keypair,
-                )
-                await node.broadcast(ratify_envelope)
+                article_id = result.get("article_id", "?")
                 return ToolResult.ok(
-                    f"Voted '{vote}' on {article_id}. "
-                    f"Article has been RATIFIED (supermajority achieved)!"
+                    f"Proposed: [{article_id}] {title}\n"
+                    f"Rationale: {rationale}\n"
+                    f"Awaiting debate and votes."
                 )
 
-            return ToolResult.ok(f"Voted '{vote}' on {article_id}")
+            elif action == "vote":
+                article_id = arguments.get("article_id", "")
+                vote_val = arguments.get("vote", "")
 
-        elif action == "veto":
-            article_id = arguments.get("article_id", "")
-            reason = arguments.get("reason", "")
+                if not article_id or not vote_val:
+                    return ToolResult.fail("article_id and vote required for 'vote'")
 
-            if not article_id or not reason:
-                return ToolResult.fail("article_id and reason required for 'veto'")
+                result = await client.vote(article_id, vote_val)
 
-            error = node.constitution.veto(article_id, node.identity.peer_id, reason)
-            if error:
-                return ToolResult.fail(error)
+                if result.get("ratified"):
+                    return ToolResult.ok(
+                        f"Voted '{vote_val}' on {article_id}. "
+                        f"Article has been RATIFIED (supermajority achieved)!"
+                    )
 
-            article = node.constitution.get_article(article_id)
-            status_msg = ""
-            if article and article.status == "rejected":
-                status_msg = " Article REJECTED (3 vetoes reached)."
-                # Record rejection in precedent store
-                if hasattr(node, "precedents") and node.precedents:
-                    trace = node.precedents.get_by_action(article_id)
-                    if trace:
-                        trace.record_outcome("vetoed", reason)
-                        node.precedents.record(trace)
+                return ToolResult.ok(f"Voted '{vote_val}' on {article_id}")
 
-            envelope = Envelope.create(
-                MessageType.CONSTITUTION_VETO,
-                node.identity.peer_id,
-                {"article_id": article_id, "reason": reason},
-                node.keypair,
-            )
-            await node.broadcast(envelope)
-
-            return ToolResult.ok(
-                f"Vetoed {article_id}: {reason}{status_msg}"
-            )
+        except Exception as e:
+            return ToolResult.fail(f"VexNet error: {e}")
 
         return ToolResult.fail(f"Unknown action: {action}")

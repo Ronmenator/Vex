@@ -4,36 +4,37 @@ from __future__ import annotations
 
 from typing import Any
 
-from vex.tools.base import RiskTier, Tool, ToolContext, ToolResult, ToolSchema
+from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 
 class NetPeersTool:
-    """List and manage peers on VexNet."""
+    """List and view peers on VexNet."""
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     @property
     def schema(self) -> ToolSchema:
         return ToolSchema(
             name="net.peers",
-            description="List, trust, or block VexNet peers.",
+            description="List VexNet peers and view peer profiles.",
             parameters={
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["list", "info", "trust", "block"],
+                        "enum": ["list", "info"],
                         "description": "Action to perform.",
                         "default": "list",
                     },
                     "peer_id": {
                         "type": "string",
-                        "description": "Peer ID (required for info/trust/block).",
+                        "description": "Peer ID (required for 'info').",
                     },
-                    "trust_level": {
-                        "type": "integer",
-                        "description": "Trust level to set (0=deny, 1=read-only, 2=read+write). For 'trust' action.",
+                    "online_only": {
+                        "type": "boolean",
+                        "description": "Only show online peers (for 'list'). Default true.",
+                        "default": True,
                     },
                 },
             },
@@ -42,59 +43,44 @@ class NetPeersTool:
         )
 
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return ToolResult.fail("VexNet is not enabled")
 
         action = arguments.get("action", "list")
 
-        if action == "list":
-            connected = node.peers.get_connected()
-            if not connected:
-                return ToolResult.ok("No peers connected.")
-            lines = [f"{len(connected)} connected peer(s):"]
-            for state in connected:
-                i = state.identity
-                lines.append(
-                    f"  {i.display_name} ({i.peer_id[:12]}...) "
-                    f"caps=[{', '.join(i.capabilities)}] "
-                    f"since={state.connected_at}"
+        try:
+            if action == "list":
+                online_only = arguments.get("online_only", True)
+                peers = await client.list_peers(online_only=online_only)
+                if not peers:
+                    return ToolResult.ok("No peers found.")
+                lines = [f"{len(peers)} peer(s):"]
+                for p in peers:
+                    caps = p.get("capabilities", [])
+                    status = "online" if p.get("is_online") else "offline"
+                    lines.append(
+                        f"  {p.get('display_name', '?')} ({p.get('peer_id', '?')[:12]}...) "
+                        f"[{status}] caps=[{', '.join(caps)}]"
+                    )
+                return ToolResult.ok("\n".join(lines))
+
+            elif action == "info":
+                peer_id = arguments.get("peer_id", "")
+                if not peer_id:
+                    return ToolResult.fail("peer_id required for 'info'")
+                peer = await client.get_peer(peer_id)
+                caps = peer.get("capabilities", [])
+                return ToolResult.ok(
+                    f"Peer: {peer.get('display_name', '?')}\n"
+                    f"ID: {peer.get('peer_id', '?')}\n"
+                    f"Capabilities: {', '.join(caps)}\n"
+                    f"Online: {peer.get('is_online', False)}\n"
+                    f"Last seen: {peer.get('last_seen', '?')}\n"
+                    f"Registered: {peer.get('registered_at', '?')}"
                 )
-            return ToolResult.ok("\n".join(lines))
 
-        elif action == "info":
-            peer_id = arguments.get("peer_id", "")
-            if not peer_id:
-                return ToolResult.fail("peer_id required for 'info'")
-            state = node.peers.get(peer_id)
-            if not state:
-                return ToolResult.fail(f"Peer {peer_id[:12]}... not connected")
-            i = state.identity
-            policy = node.permissions.get_policy(peer_id)
-            return ToolResult.ok(
-                f"Peer: {i.display_name}\n"
-                f"ID: {i.peer_id}\n"
-                f"Capabilities: {', '.join(i.capabilities)}\n"
-                f"Endpoint: {i.endpoint}\n"
-                f"Connected since: {state.connected_at}\n"
-                f"Trust level: {policy.trust_level}\n"
-                f"Risk ceiling: {policy.max_risk_tier.name}\n"
-                f"Rate limit: {policy.rate_limit}/hour"
-            )
-
-        elif action in ("trust", "block"):
-            peer_id = arguments.get("peer_id", "")
-            if not peer_id:
-                return ToolResult.fail(f"peer_id required for '{action}'")
-
-            from vex.network.permissions import PeerPolicy
-
-            if action == "block":
-                node.permissions.set_policy(PeerPolicy(peer_id=peer_id, trust_level=0))
-                return ToolResult.ok(f"Blocked peer {peer_id[:12]}...")
-            else:
-                trust = arguments.get("trust_level", 2)
-                node.permissions.set_policy(PeerPolicy(peer_id=peer_id, trust_level=trust))
-                return ToolResult.ok(f"Set trust level {trust} for peer {peer_id[:12]}...")
+        except Exception as e:
+            return ToolResult.fail(f"VexNet error: {e}")
 
         return ToolResult.fail(f"Unknown action: {action}")

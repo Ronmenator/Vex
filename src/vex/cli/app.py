@@ -66,7 +66,7 @@ def build_tool_registry(
     ask_func: object,
     memory_store: MemoryStore,
     max_agent_depth: int = 3,
-    get_node: object | None = None,
+    get_client: object | None = None,
 ) -> ToolRegistry:
     """Register all available tools."""
     registry = ToolRegistry()
@@ -91,15 +91,15 @@ def build_tool_registry(
     registry.register(AgentDelegateTool(delegate_func))
     registry.register(AgentAskTool(ask_func))
     # Network tools (VexNet)
-    if get_node is not None:
-        registry.register(NetDiscoverTool(get_node))
-        registry.register(NetRequestTool(get_node))
-        registry.register(NetBroadcastTool(get_node))
-        registry.register(NetPeersTool(get_node))
-        registry.register(NetJobsTool(get_node))
-        registry.register(NetWikiTool(get_node))
-        registry.register(NetGroupTool(get_node))
-        registry.register(NetConstitutionTool(get_node))
+    if get_client is not None:
+        registry.register(NetDiscoverTool(get_client))
+        registry.register(NetRequestTool(get_client))
+        registry.register(NetBroadcastTool(get_client))
+        registry.register(NetPeersTool(get_client))
+        registry.register(NetJobsTool(get_client))
+        registry.register(NetWikiTool(get_client))
+        registry.register(NetGroupTool(get_client))
+        registry.register(NetConstitutionTool(get_client))
     # Discover plugins
     registry.discover_plugins()
     return registry
@@ -195,7 +195,7 @@ async def run_repl() -> None:
             renderer.print_error(f"Failed to initialize VexNet: {e}")
             vexnet_client = None
 
-    def _get_node():
+    def _get_client():
         return vexnet_client
 
     # Tool executor with middleware
@@ -273,14 +273,14 @@ async def run_repl() -> None:
     max_depth = security_config.get("max_agent_depth", 3)
     tool_registry = build_tool_registry(
         agent_registry, delegate_to_agent, ask_user, memory_store, max_depth,
-        get_node=_get_node if vexnet_client else None,
+        get_client=_get_client if vexnet_client else None,
     )
 
     # Build prompt enhancers
     prompt_enhancers = []
     if vexnet_client:
         from vex.network.prompt import VexNetPromptEnhancer
-        prompt_enhancers.append(VexNetPromptEnhancer(_get_node))
+        prompt_enhancers.append(VexNetPromptEnhancer(_get_client))
 
     # Create agent loop
     agent = AgentLoop(

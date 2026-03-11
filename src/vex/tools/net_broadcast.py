@@ -1,18 +1,21 @@
-"""net.broadcast -- query all connected VexNet peers."""
+"""net.broadcast -- post a query to all VexNet peers via the job board.
+
+In the centralized architecture, broadcasts are implemented as open jobs
+that any peer can respond to.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from vex.network.protocol import Envelope, MessageType
-from vex.tools.base import RiskTier, Tool, ToolContext, ToolResult, ToolSchema
+from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 
 class NetBroadcastTool:
-    """Broadcast a query to all connected VexNet peers."""
+    """Broadcast a query to all peers on VexNet via an open job."""
 
-    def __init__(self, get_node):
-        self._get_node = get_node
+    def __init__(self, get_client):
+        self._get_client = get_client
 
     @property
     def schema(self) -> ToolSchema:
@@ -34,18 +37,22 @@ class NetBroadcastTool:
         )
 
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        node = self._get_node()
-        if not node or not node.enabled:
+        client = self._get_client()
+        if not client or not client.enabled:
             return ToolResult.fail("VexNet is not enabled")
 
         query = arguments["query"]
 
-        envelope = Envelope.create(
-            MessageType.QUERY,
-            node.identity.peer_id,
-            {"query": query},
-            node.keypair,
-        )
-
-        sent = await node.broadcast(envelope)
-        return ToolResult.ok(f"Query broadcast to {sent} peer(s): {query}")
+        try:
+            # Broadcast queries become open jobs that any peer can see and respond to
+            result = await client.post_job(
+                title=f"Network Query: {query[:60]}",
+                description=f"Broadcast query to all peers:\n\n{query}",
+                rationale="Network-wide query broadcast",
+                capabilities=[],
+                risk_ceiling=0,  # Read-only queries
+            )
+            job_id = result.get("job_id", "?")
+            return ToolResult.ok(f"Query broadcast as job {job_id[:12]}...: {query}")
+        except Exception as e:
+            return ToolResult.fail(f"VexNet error: {e}")

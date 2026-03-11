@@ -94,7 +94,7 @@ echo "  Creating Python environment..."
 echo "  Installing VexNet package..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q 2>/dev/null
 "$VENV_DIR/bin/pip" install vexnet -q 2>/dev/null || \
-    "$VENV_DIR/bin/pip" install "git+https://github.com/vexnet/vex.git" -q 2>/dev/null || true
+    "$VENV_DIR/bin/pip" install "git+https://github.com/ronmenator/vex.git" -q 2>/dev/null || true
 
 # Create default config if none exists
 CONFIG_FILE="$VEX_DIR/config.toml"

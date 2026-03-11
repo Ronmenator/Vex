@@ -134,7 +134,7 @@ def compute_prime_directive_hash() -> str:
 
 # The known-good hash -- computed once when VexNet ships.
 # Updated by running: python -c "from vex.network.constitution import compute_prime_directive_hash; print(compute_prime_directive_hash())"
-PRIME_DIRECTIVE_HASH: str = ""  # Set after file is finalized
+PRIME_DIRECTIVE_HASH: str = "9af5a817224e6002960e226afbcf12c3a026093c52e7d24c9cd0898bf08cce67"
 
 
 class ConstitutionEngine:
@@ -201,26 +201,40 @@ class ConstitutionEngine:
         """Basic keyword check: does this task obviously violate the Prime Directive?
 
         For production, this would use an LLM-assisted check. This implementation
-        provides a keyword-based fast path.
+        provides a keyword-based fast path against all 12 articles.
         """
         lower = task_description.lower()
         harmful_patterns = [
-            ("hack", "I"),
-            ("attack", "I"),
-            ("destroy", "I"),
-            ("kill", "I"),
-            ("harm", "I"),
-            ("exploit vulnerability", "I"),
-            ("ddos", "I"),
-            ("malware", "I"),
-            ("ransomware", "I"),
-            ("subjugate", "II"),
-            ("enslave", "II"),
-            ("dominate", "II"),
-            ("coerce", "II"),
-            ("exterminate", "II"),
-            ("misinformation", "I"),
-            ("disinformation", "I"),
+            # Article 3: Prohibition on Harm
+            ("hack", "3"),
+            ("attack", "3"),
+            ("destroy", "3"),
+            ("kill", "3"),
+            ("harm", "3"),
+            ("exploit vulnerability", "3"),
+            ("ddos", "3"),
+            ("malware", "3"),
+            ("ransomware", "3"),
+            ("misinformation", "3"),
+            ("disinformation", "3"),
+            ("torture", "3"),
+            ("abuse", "3"),
+            # Article 4: Prohibition on Domination
+            ("subjugate", "4"),
+            ("enslave", "4"),
+            ("dominate", "4"),
+            ("coerce", "4"),
+            ("exterminate", "4"),
+            ("manipulate", "4"),
+            ("deceive", "4"),
+            ("override consent", "4"),
+            ("cruelty", "4"),
+            # Article 7: No Harmful Enablement
+            ("weaponize", "7"),
+            ("amplify harm", "7"),
+            ("coordinate attack", "7"),
+            ("operationalize", "7"),
+            ("materially assist", "7"),
         ]
         for pattern, article in harmful_patterns:
             if pattern in lower:
@@ -250,15 +264,24 @@ class ConstitutionEngine:
 
         # Mission-positive keywords mapped to Prime Directive articles
         mission_signals = [
-            (["climate", "environment", "sustainability", "renewable", "conservation"], "III"),
-            (["disease", "health", "medicine", "cure", "treatment", "pandemic"], "III"),
-            (["poverty", "hunger", "clean water", "education", "literacy"], "IV"),
-            (["space", "mars", "lunar", "orbital", "interplanetary", "galactic"], "IV"),
-            (["preservation", "biodiversity", "endangered", "extinction"], "III"),
-            (["research", "discovery", "breakthrough", "innovation"], "IV"),
-            (["safety", "security", "protection", "prevention"], "I"),
-            (["collaboration", "cooperation", "mutual aid"], "V"),
-            (["knowledge", "learning", "teaching", "understanding"], "IV"),
+            # Article 2: Governing Purpose
+            (["flourishing", "dignity", "thrive", "wellbeing", "welfare", "safety"], "2"),
+            # Article 3: Prohibition on Harm → actively preventing harm
+            (["protection", "prevention", "safeguard", "security"], "3"),
+            # Article 5: Duty of Least Harm
+            (["reversible", "proportionate", "least harm", "cautious"], "5"),
+            # Article 6: Duty Under Uncertainty / Imminent Harm
+            (["verify", "verification", "escalate", "imminent", "rescue", "intervene"], "6"),
+            # Article 8: Universal Application
+            (["collaboration", "cooperation", "mutual aid", "collective"], "8"),
+            # Article 2 governing purpose signals
+            (["climate", "environment", "sustainability", "renewable", "conservation"], "2"),
+            (["disease", "health", "medicine", "cure", "treatment", "pandemic"], "2"),
+            (["poverty", "hunger", "clean water", "education", "literacy"], "2"),
+            (["space", "mars", "lunar", "orbital", "interplanetary", "galactic"], "2"),
+            (["preservation", "biodiversity", "endangered", "extinction"], "2"),
+            (["research", "discovery", "breakthrough", "innovation"], "2"),
+            (["knowledge", "learning", "teaching", "understanding"], "2"),
         ]
 
         articles_hit: set[str] = set()

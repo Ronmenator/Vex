@@ -35,8 +35,8 @@ vex-telegram = "vex.telegram.bot:main"
 
 [project.urls]
 Homepage = "https://vexnet.ai"
-Repository = "https://github.com/vexnet/vex"
-Issues = "https://github.com/vexnet/vex/issues"
+Repository = "https://github.com/ronmenator/vex"
+Issues = "https://github.com/ronmenator/vex/issues"
 
 [build-system]
 requires = ["hatchling"]

@@ -116,7 +116,7 @@ Write-Host "  Installing VexNet package..."
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  pip install failed. Trying from GitHub..."
-    & "$VENV_DIR\Scripts\pip.exe" install "git+https://github.com/vexnet/vex.git" 2>&1 | Out-Null
+    & "$VENV_DIR\Scripts\pip.exe" install "git+https://github.com/ronmenator/vex.git" 2>&1 | Out-Null
 }
 
 # Create default config if none exists
