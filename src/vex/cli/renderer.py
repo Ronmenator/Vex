@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.console import Console
 from rich.live import Live
 from rich.markdown import Markdown
@@ -105,12 +107,17 @@ class Renderer:
                 preview = output
             self.console.print(f"  {' ' * 4}done ({len(output)} chars)", style="green")
 
-    def render_approval_prompt(self, event: ToolCallEvent) -> str:
+    async def render_approval_prompt(self, event: ToolCallEvent, session: Any = None) -> str:
         """Show an approval prompt and return the user's choice."""
         self.console.print(
             f"  {' ' * 4}This action requires approval.",
             style="bright_yellow",
         )
+        if session:
+            response = await session.prompt_async(
+                "      Allow? [y/n/always]: "
+            )
+            return response.strip().lower()
         response = self.console.input(
             Text("  " + " " * 4 + "Allow? [y/n/always]: ", style="bright_yellow")
         ).strip().lower()
@@ -133,12 +140,18 @@ class Renderer:
         self.console.print()
         self.console.print(f"  {summary}", style="bold dim")
 
-    def render_feedback_prompt(self) -> str | None:
+    async def render_feedback_prompt(self, session: Any = None) -> str | None:
         """Ask for quick feedback after a long operation."""
         try:
-            response = self.console.input(
-                Text("  Was this helpful? [y/n/skip]: ", style="dim")
-            ).strip().lower()
+            if session:
+                response = await session.prompt_async(
+                    "  Was this helpful? [y/n/skip]: "
+                )
+                response = response.strip().lower()
+            else:
+                response = self.console.input(
+                    Text("  Was this helpful? [y/n/skip]: ", style="dim")
+                ).strip().lower()
             if response in ("y", "n"):
                 return "positive" if response == "y" else "negative"
         except (EOFError, KeyboardInterrupt):

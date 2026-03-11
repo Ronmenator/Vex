@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Per-chat state
 _chat_conversations: dict[int, RetrievalConversation] = {}
 _chat_agents: dict[int, AgentLoop] = {}
+_chat_cancel_events: dict[int, asyncio.Event] = {}
 
 # Shared engine (initialized in run_bot)
 _core: VexCore | None = None
@@ -391,6 +392,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "run commands, search the web, and create sub-agents.\n\n"
         "<b>Commands:</b>\n"
         "/clear — Reset conversation\n"
+        "/stop — Stop a running agent\n"
         "/tools — List available tools\n"
         "/agents — List registered agents\n"
         "/autonomy [0-3] — Set autonomy level\n"
@@ -484,6 +486,19 @@ async def cmd_metrics(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"Errors: {stats['error_count']}"
     )
     await update.message.reply_html(text)
+
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    if not _is_authorized(chat_id, update.effective_chat.type):
+        await update.message.reply_text("⛔ Not authorized.")
+        return
+    cancel_event = _chat_cancel_events.get(chat_id)
+    if cancel_event and not cancel_event.is_set():
+        cancel_event.set()
+        await update.message.reply_text("🛑 Stopping...")
+    else:
+        await update.message.reply_text("No agent running.")
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -588,6 +603,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Inject per-user context
     _inject_user_enhancers(agent, tg_user_id, chat_id, user_text, is_dm=not is_group)
 
+    # Set up cancellation for this chat
+    cancel_event = asyncio.Event()
+    _chat_cancel_events[chat_id] = cancel_event
+
     # Collect the response
     text_parts: list[str] = []
     all_sent_text: list[str] = []
@@ -610,7 +629,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             all_sent_text.append(text)
 
     try:
-        async for event in agent.run(user_text, conversation):
+        async for event in agent.run(user_text, conversation, cancel_event=cancel_event):
             if isinstance(event, StreamEvent):
                 if event.text_delta:
                     text_parts.append(event.text_delta)
@@ -647,6 +666,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.exception("Agent error for chat %d", chat_id)
         await update.message.reply_text(f"❌ Error: {_escape(redact_secrets(str(e)))}")
+        _chat_cancel_events.pop(chat_id, None)
+        return
+    finally:
+        _chat_cancel_events.pop(chat_id, None)
+
+    if cancel_event.is_set() and not text_parts and not all_sent_text:
+        await update.message.reply_text("🛑 Stopped.")
         return
 
     # Send remaining text
@@ -768,6 +794,7 @@ def run_bot(token: str | None = None, workspace: str | None = None) -> None:
     app.add_handler(CommandHandler("agents", cmd_agents))
     app.add_handler(CommandHandler("autonomy", cmd_autonomy))
     app.add_handler(CommandHandler("metrics", cmd_metrics))
+    app.add_handler(CommandHandler("stop", cmd_stop))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

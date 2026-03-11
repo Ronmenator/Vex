@@ -8,6 +8,7 @@ import sys
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 
 from vex.agent.conversation import Conversation, RetrievalConversation
@@ -33,17 +34,26 @@ async def run_repl() -> None:
         renderer.print_error(f"Failed to initialize Vex: {e}")
         sys.exit(1)
 
-    # CLI-specific components
-    approval_manager = ApprovalManager(renderer)
+    # Setup prompt with history
+    history_dir = os.path.join(os.path.expanduser("~"), ".vex")
+    os.makedirs(history_dir, exist_ok=True)
+    history_file = os.path.join(history_dir, "history")
+
+    session: PromptSession[str] = PromptSession(
+        history=FileHistory(history_file),
+    )
+
+    # CLI-specific components (session passed for async-safe input)
+    approval_manager = ApprovalManager(renderer, session=session)
     feedback_collector = FeedbackCollector(core.workspace)
     preferences = PreferenceStore(core.workspace)
 
-    # Set up interactive ask function
+    # Set up interactive ask function (uses prompt_toolkit for async-safe input)
     async def ask_user(question: str) -> str:
         renderer.console.print()
         renderer.console.print(f"  [bold bright_cyan]Agent asks:[/] {question}")
-        answer = renderer.console.input("  Your answer: ").strip()
-        return answer
+        answer = await session.prompt_async("  Your answer: ")
+        return answer.strip()
 
     core.set_ask_func(ask_user)
 
@@ -116,15 +126,6 @@ async def run_repl() -> None:
         )
         activity_loop.start()
 
-    # Setup prompt with history
-    history_dir = os.path.join(os.path.expanduser("~"), ".vex")
-    os.makedirs(history_dir, exist_ok=True)
-    history_file = os.path.join(history_dir, "history")
-
-    session: PromptSession[str] = PromptSession(
-        history=FileHistory(history_file),
-    )
-
     # Connect to VexNet server if enabled
     if core.vexnet_client:
         try:
@@ -143,6 +144,11 @@ async def run_repl() -> None:
 
     tool_call_count = 0
 
+    # patch_stdout ensures Rich/print output doesn't corrupt prompt_toolkit's
+    # terminal state (raw mode, cursor, etc.) — critical on macOS.
+    _patch = patch_stdout()
+    _patch.__enter__()
+
     while True:
         try:
             user_input = await session.prompt_async(
@@ -151,6 +157,7 @@ async def run_repl() -> None:
             )
         except (EOFError, KeyboardInterrupt):
             renderer.print_info("\nGoodbye.")
+            _patch.__exit__(None, None, None)
             if activity_loop:
                 activity_loop.stop()
             if core.vexnet_client:
@@ -306,7 +313,7 @@ async def run_repl() -> None:
                     renderer.print_info("Usage: /pref [key] [value]")
                 continue
             elif cmd == "/stop":
-                renderer.print_info("No agent running.")
+                renderer.print_info("Use Ctrl+C to stop a running agent.")
                 continue
             elif cmd == "/restart":
                 renderer.print_info("Restarting Vex...")
@@ -350,18 +357,6 @@ async def run_repl() -> None:
         # Run agent
         cancel_event = asyncio.Event()
 
-        async def _watch_for_stop():
-            """Monitor stdin for /stop while the agent is running."""
-            loop = asyncio.get_event_loop()
-            while not cancel_event.is_set():
-                try:
-                    line = await loop.run_in_executor(None, sys.stdin.readline)
-                except (EOFError, OSError):
-                    break
-                if line.strip().lower() == "/stop":
-                    cancel_event.set()
-                    break
-
         try:
             renderer.start_streaming()
             console.print()
@@ -369,9 +364,6 @@ async def run_repl() -> None:
 
             if core.vexnet_client:
                 core.vexnet_client.update_status("in conversation")
-
-            # Start background listener for /stop typed during execution
-            stop_watcher = asyncio.create_task(_watch_for_stop())
 
             response_text = ""
             async for event in agent.run(user_input, conversation, cancel_event=cancel_event):
@@ -390,13 +382,6 @@ async def run_repl() -> None:
 
             renderer.end_streaming()
 
-            # Clean up the stop watcher
-            cancel_event.set()  # signal watcher to exit
-            stop_watcher.cancel()
-
-            if cancel_event.is_set() and not response_text.strip():
-                renderer.print_info("[Stopped]")
-
             if core.vexnet_client:
                 core.vexnet_client.update_status("idle")
             console.print()
@@ -411,7 +396,7 @@ async def run_repl() -> None:
 
             # Prompt for feedback after complex operations
             if tool_call_count >= 5:
-                rating = renderer.render_feedback_prompt()
+                rating = await renderer.render_feedback_prompt(session=session)
                 if rating:
                     feedback_collector.record(rating, context=user_input[:200])
 
