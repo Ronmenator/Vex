@@ -76,7 +76,7 @@ if ! pgrep -x "ollama" &>/dev/null; then
 fi
 
 echo "  Pulling language model (this may take a few minutes)..."
-ollama pull glm4:latest 2>/dev/null || ollama pull llama3.2:latest 2>/dev/null || true
+ollama pull qwen3:30b-a3b 2>/dev/null || ollama pull qwen3:8b 2>/dev/null || true
 echo -e "  Language model ready. ${GREEN}OK${NC}"
 
 echo "  Pulling embedding model..."
@@ -94,7 +94,7 @@ echo "  Creating Python environment..."
 echo "  Installing VexNet package..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q 2>/dev/null
 "$VENV_DIR/bin/pip" install vexnet -q 2>/dev/null || \
-    "$VENV_DIR/bin/pip" install "git+https://github.com/vexnet/vex.git" -q 2>/dev/null || true
+    "$VENV_DIR/bin/pip" install "git+https://github.com/ronmenator/vex.git" -q 2>/dev/null || true
 
 # Create default config if none exists
 CONFIG_FILE="$VEX_DIR/config.toml"
@@ -102,15 +102,18 @@ if [ ! -f "$CONFIG_FILE" ]; then
     cat > "$CONFIG_FILE" << 'EOF'
 [llm]
 provider = "ollama"
-model = "glm4:latest"
+model = "qwen3:30b-a3b"
 
 [llm.ollama]
 base_url = "http://localhost:11434/v1"
 
+[network]
+enabled = false
+
 [security]
 autonomy_level = 1
 max_agent_depth = 3
-max_tool_rounds = 25
+max_tool_rounds = 200
 
 [audit]
 enabled = true
@@ -162,7 +165,7 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "  ${CYAN}Quick start:${NC}"
 echo "    vex                    Start the interactive agent"
-echo "    vex --telegram         Start the Telegram bot"
+echo "    vex-telegram           Start the Telegram bot"
 echo ""
 echo -e "  ${CYAN}Configuration:${NC}"
 echo "    Config file: $CONFIG_FILE"
@@ -170,7 +173,7 @@ echo ""
 echo -e "  ${CYAN}Telegram setup:${NC}"
 echo "    1. Create a bot via @BotFather on Telegram"
 echo "    2. export TELEGRAM_BOT_TOKEN=your_token"
-echo "    3. Run: vex --telegram"
+echo "    3. Run: vex-telegram"
 echo ""
 echo -e "  ${YELLOW}Restart your terminal or run:${NC}"
 echo "    source $SHELL_RC"
