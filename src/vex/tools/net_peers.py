@@ -60,7 +60,7 @@ class NetPeersTool:
                     caps = p.get("capabilities", [])
                     status = "online" if p.get("is_online") else "offline"
                     lines.append(
-                        f"  {p.get('display_name', '?')} ({p.get('peer_id', '?')[:12]}...) "
+                        f"  {p.get('display_name', '?')} ({p.get('peer_id', '?')}) "
                         f"[{status}] caps=[{', '.join(caps)}]"
                     )
                 return ToolResult.ok("\n".join(lines))

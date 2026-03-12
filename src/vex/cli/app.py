@@ -8,7 +8,6 @@ import sys
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 
 from vex.agent.conversation import Conversation, RetrievalConversation
@@ -144,11 +143,6 @@ async def run_repl() -> None:
 
     tool_call_count = 0
 
-    # patch_stdout ensures Rich/print output doesn't corrupt prompt_toolkit's
-    # terminal state (raw mode, cursor, etc.) — critical on macOS.
-    _patch = patch_stdout()
-    _patch.__enter__()
-
     while True:
         try:
             user_input = await session.prompt_async(
@@ -157,7 +151,6 @@ async def run_repl() -> None:
             )
         except (EOFError, KeyboardInterrupt):
             renderer.print_info("\nGoodbye.")
-            _patch.__exit__(None, None, None)
             if activity_loop:
                 activity_loop.stop()
             if core.vexnet_client:

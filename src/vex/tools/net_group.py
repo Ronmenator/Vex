@@ -111,10 +111,10 @@ class NetGroupTool:
                     members = g.get("members", [])
                     tags = g.get("topic_tags", [])
                     lines.append(
-                        f"  {g.get('name', '?')} (id={g.get('group_id', '?')[:12]}...)\n"
+                        f"  {g.get('name', '?')} (id={g.get('group_id', '?')})\n"
                         f"    {len(members)} member(s) | "
                         f"tags={', '.join(tags)} | "
-                        f"by {g.get('created_by', '?')[:12]}..."
+                        f"by {g.get('created_by', '?')}"
                     )
                 return ToolResult.ok("\n".join(lines))
 
@@ -133,7 +133,7 @@ class NetGroupTool:
                     f"Created by: {group.get('created_by', '?')}\n"
                     f"Created at: {group.get('created_at', '?')}\n"
                     f"Visibility: {group.get('visibility', '?')}\n"
-                    f"Members ({len(members)}): {', '.join(m[:12] + '...' for m in members)}\n"
+                    f"Members ({len(members)}): {', '.join(members)}\n"
                     f"Tags: {', '.join(tags)}"
                 )
 
@@ -170,21 +170,21 @@ class NetGroupTool:
                         pass
 
                 group_id = result.get("group_id", "?")
-                return ToolResult.ok(f"Group created: {name} (id={group_id[:12]}...)")
+                return ToolResult.ok(f"Group created: {name} (id={group_id})")
 
             elif action == "join":
                 group_id = arguments.get("group_id", "")
                 if not group_id:
                     return ToolResult.fail("group_id required for 'join'")
                 await client.join_group(group_id)
-                return ToolResult.ok(f"Joined group {group_id[:12]}...")
+                return ToolResult.ok(f"Joined group {group_id}")
 
             elif action == "leave":
                 group_id = arguments.get("group_id", "")
                 if not group_id:
                     return ToolResult.fail("group_id required for 'leave'")
                 await client.leave_group(group_id)
-                return ToolResult.ok(f"Left group {group_id[:12]}...")
+                return ToolResult.ok(f"Left group {group_id}")
 
             elif action == "post":
                 group_id = arguments.get("group_id", "")
@@ -193,7 +193,7 @@ class NetGroupTool:
                     return ToolResult.fail("group_id and content required for 'post'")
                 reply_to = arguments.get("reply_to")
                 await client.post_message(group_id, content, reply_to=reply_to)
-                return ToolResult.ok(f"Posted to group {group_id[:12]}...")
+                return ToolResult.ok(f"Posted to group {group_id}")
 
             elif action == "messages":
                 group_id = arguments.get("group_id", "")
@@ -205,10 +205,10 @@ class NetGroupTool:
                     return ToolResult.ok("No messages in this group.")
                 lines = [f"{len(messages)} message(s):"]
                 for m in messages:
-                    reply = f" (reply to {m.get('reply_to', '')[:12]}...)" if m.get("reply_to") else ""
+                    reply = f" (reply to {m.get('reply_to', '')})" if m.get("reply_to") else ""
                     lines.append(
                         f"  [{m.get('created_at', '?')}] "
-                        f"{m.get('sender_id', '?')[:12]}...{reply}: "
+                        f"{m.get('sender_id', '?')}{reply}: "
                         f"{m.get('content', '')[:200]}"
                     )
                 return ToolResult.ok("\n".join(lines))

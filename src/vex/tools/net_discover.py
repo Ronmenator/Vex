@@ -50,7 +50,7 @@ class NetDiscoverTool:
         for p in peers:
             caps = p.get("capabilities", [])
             lines.append(
-                f"  - {p.get('display_name', '?')} ({p.get('peer_id', '?')[:12]}...)"
+                f"  - {p.get('display_name', '?')} ({p.get('peer_id', '?')})"
                 f"  capabilities: {', '.join(caps)}"
             )
         return ToolResult.ok("\n".join(lines))

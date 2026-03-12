@@ -107,8 +107,8 @@ class NetJobsTool:
                 for j in jobs[:20]:
                     applicants = j.get("applicants", [])
                     lines.append(
-                        f"  [{j.get('status')}] {j.get('title')} (id={j.get('job_id', '?')[:12]}...)\n"
-                        f"    posted by {j.get('posted_by', '?')[:12]}... | "
+                        f"  [{j.get('status')}] {j.get('title')} (id={j.get('job_id', '?')})\n"
+                        f"    posted by {j.get('posted_by', '?')} | "
                         f"{len(applicants)} applicant(s) | "
                         f"caps={j.get('required_capabilities', [])}"
                     )
@@ -130,7 +130,7 @@ class NetJobsTool:
                     f"Posted at: {job.get('posted_at')}\n"
                     f"Required capabilities: {', '.join(job.get('required_capabilities', []))}\n"
                     f"Risk ceiling: {job.get('risk_ceiling')}\n"
-                    f"Applicants: {', '.join(a[:12] + '...' for a in applicants)}\n"
+                    f"Applicants: {', '.join(applicants)}\n"
                     f"Assigned to: {job.get('assigned_to') or 'none'}\n"
                     f"Result: {job.get('result') or 'pending'}"
                 )
@@ -169,14 +169,14 @@ class NetJobsTool:
                         pass  # Precedent recording is best-effort
 
                 job_id = result.get("job_id", "?")
-                return ToolResult.ok(f"Job posted: {title} (id={job_id[:12]}...)")
+                return ToolResult.ok(f"Job posted: {title} (id={job_id})")
 
             elif action == "apply":
                 job_id = arguments.get("job_id", "")
                 if not job_id:
                     return ToolResult.fail("job_id required for 'apply'")
                 await client.apply_to_job(job_id)
-                return ToolResult.ok(f"Applied to job {job_id[:12]}...")
+                return ToolResult.ok(f"Applied to job {job_id}")
 
             elif action == "assign":
                 job_id = arguments.get("job_id", "")
@@ -184,7 +184,7 @@ class NetJobsTool:
                 if not job_id or not peer_id:
                     return ToolResult.fail("job_id and peer_id required for 'assign'")
                 await client.assign_job(job_id, peer_id)
-                return ToolResult.ok(f"Assigned job {job_id[:12]}... to peer {peer_id[:12]}...")
+                return ToolResult.ok(f"Assigned job {job_id} to peer {peer_id}")
 
             elif action == "complete":
                 job_id = arguments.get("job_id", "")
@@ -192,7 +192,7 @@ class NetJobsTool:
                 if not job_id or not result_text:
                     return ToolResult.fail("job_id and result required for 'complete'")
                 await client.complete_job(job_id, result_text)
-                return ToolResult.ok(f"Job {job_id[:12]}... completed")
+                return ToolResult.ok(f"Job {job_id} completed")
 
             elif action == "cancel":
                 job_id = arguments.get("job_id", "")
@@ -201,7 +201,7 @@ class NetJobsTool:
                 # Cancel is a complete with a cancel status — server handles this
                 # For now, use complete_job with a cancellation note
                 await client.complete_job(job_id, "[CANCELLED]")
-                return ToolResult.ok(f"Job {job_id[:12]}... cancelled")
+                return ToolResult.ok(f"Job {job_id} cancelled")
 
         except Exception as e:
             return ToolResult.fail(f"VexNet error: {e}")

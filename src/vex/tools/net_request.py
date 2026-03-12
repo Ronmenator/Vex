@@ -58,7 +58,7 @@ class NetRequestTool:
         try:
             # Post a job and immediately assign to the target peer
             result = await client.post_job(
-                title=f"Direct request to {peer_id[:12]}...",
+                title=f"Direct request to {peer_id}",
                 description=description,
                 rationale="Direct peer-to-peer task delegation",
                 capabilities=[],
@@ -70,7 +70,7 @@ class NetRequestTool:
                 await client.assign_job(job_id, peer_id)
 
             return ToolResult.ok(
-                f"Task sent to peer {peer_id[:12]}... (job_id={job_id[:12]}...)\n"
+                f"Task sent to peer {peer_id} (job_id={job_id})\n"
                 f"Awaiting response..."
             )
         except Exception as e:

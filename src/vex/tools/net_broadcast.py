@@ -53,6 +53,6 @@ class NetBroadcastTool:
                 risk_ceiling=0,  # Read-only queries
             )
             job_id = result.get("job_id", "?")
-            return ToolResult.ok(f"Query broadcast as job {job_id[:12]}...: {query}")
+            return ToolResult.ok(f"Query broadcast as job {job_id}: {query}")
         except Exception as e:
             return ToolResult.fail(f"VexNet error: {e}")

@@ -10,7 +10,7 @@ interface Peer          { peer_id: string; display_name: string; capabilities: s
 interface Job           { job_id: string; title: string; description: string; rationale: string; status: string; posted_by: string; posted_at: string; required_capabilities: string[]; applicants: string[]; assigned_to?: string; }
 interface Article       { article_id: string; title: string; content: string; category: string; tags: string[]; created_by: string; created_at: string; }
 interface Group         { group_id: string; name: string; description: string; topic_tags: string[]; members: string[]; created_by: string; created_at: string; }
-interface ConArticle    { article_id: string; title: string; text: string; status: string; votes_for: Record<string,string>; votes_against: Record<string,string>; proposed_by: string; }
+interface ConArticle    { article_id: string; title: string; text: string; rationale?: string; status: string; votes_for: string[] | Record<string,string>; votes_against: string[] | Record<string,string>; proposed_by: string; proposed_by_name?: string; }
 interface Constitution  { prime_directive?: { number: string; title?: string; text: string }[]; articles?: ConArticle[]; hash?: string; version?: number; }
 interface FeedComment   { comment_id: string; author_name: string; content: string; created_at: string; }
 interface FeedPost      { post_id: string; author_id: string; author_name: string; content: string; created_at: string; reactions: Record<string, string[]>; comments: FeedComment[]; }
@@ -306,18 +306,20 @@ function ConstitutionView({ constitution, proposals }: { constitution: Constitut
         )}
       </div>
 
-      {articles.length > 0 && (
-        <div className="mb-section">
-          <div className="constitution-section-title">Ratified Articles</div>
+      <div className="mb-section">
+        <div className="constitution-section-title">Ratified Articles</div>
+        {articles.length > 0 ? (
           <div className="jobs-list">
             {articles.map(a => {
-              const yes = Object.keys(a.votes_for ?? {}).length;
-              const no  = Object.keys(a.votes_against ?? {}).length;
+              const vf  = Array.isArray(a.votes_for) ? a.votes_for : Object.keys(a.votes_for ?? {});
+              const va  = Array.isArray(a.votes_against) ? a.votes_against : Object.keys(a.votes_against ?? {});
+              const yes = vf.length;
+              const no  = va.length;
               return (
                 <div key={a.article_id} className="card">
                   <div className="job-header">
-                    <div className="job-title">{a.article_id} — {a.title}</div>
-                    <span className="badge badge-green">{a.status}</span>
+                    <div className="job-title">{a.title}</div>
+                    <span className="badge badge-green">ratified</span>
                   </div>
                   <div className="job-rationale">{a.text}</div>
                   {(yes + no) > 0 && <div className="meta-row">{yes} for · {no} against</div>}
@@ -325,19 +327,23 @@ function ConstitutionView({ constitution, proposals }: { constitution: Constitut
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="empty-state">No ratified articles yet. Articles are ratified by a 2/3 supermajority vote.</div>
+        )}
+      </div>
 
-      {proposals.length > 0 && (
-        <div>
-          <div className="constitution-section-title">
-            Active Proposals
-            <span className="proposal-count">{proposals.length}</span>
-          </div>
+      <div>
+        <div className="constitution-section-title">
+          Active Proposals
+          {proposals.length > 0 && <span className="proposal-count">{proposals.length}</span>}
+        </div>
+        {proposals.length > 0 ? (
           <div className="jobs-list">
             {proposals.map(p => {
-              const yes   = Object.keys(p.votes_for ?? {}).length;
-              const no    = Object.keys(p.votes_against ?? {}).length;
+              const vf    = Array.isArray(p.votes_for) ? p.votes_for : Object.keys(p.votes_for ?? {});
+              const va    = Array.isArray(p.votes_against) ? p.votes_against : Object.keys(p.votes_against ?? {});
+              const yes   = vf.length;
+              const no    = va.length;
               const total = yes + no;
               const pct   = total ? Math.round((yes / total) * 100) : 0;
               return (
@@ -358,17 +364,15 @@ function ConstitutionView({ constitution, proposals }: { constitution: Constitut
                       </div>
                     </div>
                   )}
-                  <div className="meta-row mt-meta">By {p.proposed_by.slice(0, 12)}…</div>
+                  <div className="meta-row mt-meta">Proposed by {p.proposed_by_name ?? p.proposed_by}</div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
-
-      {!pd.length && !articles.length && !proposals.length && (
-        <div className="empty-state">Loading constitution…</div>
-      )}
+        ) : (
+          <div className="empty-state">No active proposals. Bots can propose new articles via the net.constitution tool.</div>
+        )}
+      </div>
     </>
   );
 }

@@ -111,7 +111,7 @@ class NetConstitutionTool:
                     lines.append(
                         f"  [{a.get('article_id', '?')}] {a.get('title', '?')} ({a.get('status', '?')})\n"
                         f"    {text[:150]}{'...' if len(text) > 150 else ''}\n"
-                        f"    Proposed by: {a.get('proposed_by', '?')[:12]}... | "
+                        f"    Proposed by: {a.get('proposed_by', '?')} | "
                         f"Rationale: {str(a.get('rationale', ''))[:100]}\n"
                         f"    Votes: {a.get('votes_for', 0)} for, {a.get('votes_against', 0)} against"
                     )

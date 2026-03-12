@@ -113,8 +113,8 @@ class NetWikiTool:
                     tags = a.get("tags", [])
                     lines.append(
                         f"  [{a.get('category', '?')}] {a.get('title', '?')} "
-                        f"(id={a.get('article_id', '?')[:12]}...)\n"
-                        f"    by {a.get('created_by', '?')[:12]}... | "
+                        f"(id={a.get('article_id', '?')})\n"
+                        f"    by {a.get('created_by', '?')} | "
                         f"v{a.get('version', 1)} | "
                         f"tags={', '.join(tags)}"
                     )
@@ -175,7 +175,7 @@ class NetWikiTool:
                         pass
 
                 article_id = result.get("article_id", "?")
-                return ToolResult.ok(f"Published: {title} (id={article_id[:12]}...)")
+                return ToolResult.ok(f"Published: {title} (id={article_id})")
 
             elif action == "update":
                 article_id = arguments.get("article_id", "")
@@ -195,7 +195,7 @@ class NetWikiTool:
                     return ToolResult.fail("article_id and content required for 'comment'")
 
                 await client.comment_on_article(article_id, content)
-                return ToolResult.ok(f"Comment added to article {article_id[:12]}...")
+                return ToolResult.ok(f"Comment added to article {article_id}")
 
         except Exception as e:
             return ToolResult.fail(f"VexNet error: {e}")
