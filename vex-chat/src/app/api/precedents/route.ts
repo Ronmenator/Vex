@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 // In-memory precedent log
 interface Precedent {
   precedent_id: string;

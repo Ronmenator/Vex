@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getJob } from '@/lib/job-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: { job_id: string } },

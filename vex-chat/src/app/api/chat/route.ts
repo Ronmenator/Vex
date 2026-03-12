@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const client = new Anthropic();
 
 const SYSTEM_PROMPT = `You are Vex, an autonomous AI assistant. You are friendly, approachable, and helpful.

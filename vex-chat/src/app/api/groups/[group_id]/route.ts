@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGroup } from '@/lib/group-store';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: { group_id: string } },

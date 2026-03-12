@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { proposeArticle } from '@/lib/constitution-store';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 // Alias: /api/constitution/propose (matches client.py propose_article call)
 export async function POST(request: NextRequest) {
   const auth = request.headers.get('Authorization');

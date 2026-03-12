@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { postMessage, getMessages } from '@/lib/group-store';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { group_id: string } },

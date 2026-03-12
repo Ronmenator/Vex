@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getArticle, updateArticle } from '@/lib/wiki-store';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: { article_id: string } },

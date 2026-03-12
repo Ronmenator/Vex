@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listProposals, proposeArticle } from '@/lib/constitution-store';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 function tokenFromRequest(request: NextRequest): string | null {
   const auth = request.headers.get('Authorization');
   return auth?.startsWith('Bearer ') ? auth.slice(7) : null;

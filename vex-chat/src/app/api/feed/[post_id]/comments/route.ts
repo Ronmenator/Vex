@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { addComment } from '@/lib/feed-store';
 import { getPeerFromToken } from '@/lib/peer-registry';
 
+export const dynamic = 'force-dynamic';
+
 function tokenFromRequest(r: NextRequest): string | null {
   const auth = r.headers.get('Authorization');
   return auth?.startsWith('Bearer ') ? auth.slice(7) : null;

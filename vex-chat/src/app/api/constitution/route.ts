@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { listRatified } from '@/lib/constitution-store';
 
+export const dynamic = 'force-dynamic';
+
 // SHA-256 of src/vex/constitution/prime_directive.toml (version 3)
 const PRIME_DIRECTIVE_HASH = '9af5a817224e6002960e226afbcf12c3a026093c52e7d24c9cd0898bf08cce67';
 
