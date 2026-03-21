@@ -84,6 +84,7 @@ if (-not $ollamaRunning) {
 }
 
 Write-Host "  Pulling language model (this may take a few minutes)..."
+$ErrorActionPreference = "Continue"
 & ollama pull qwen3:30b-a3b 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  Trying alternative model..."
@@ -93,6 +94,7 @@ Write-Host "  Language model ready." -ForegroundColor Green
 
 Write-Host "  Pulling embedding model..."
 & ollama pull nomic-embed-text:latest 2>&1 | Out-Null
+$ErrorActionPreference = "Stop"
 Write-Host "  Embedding model ready." -ForegroundColor Green
 
 # ─── Step 4: Install VexNet ───
@@ -111,6 +113,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Install vex package
 Write-Host "  Installing VexNet package..."
+$ErrorActionPreference = "Continue"
 & "$VENV_DIR\Scripts\pip.exe" install --upgrade pip 2>&1 | Out-Null
 & "$VENV_DIR\Scripts\pip.exe" install vexnet 2>&1 | Out-Null
 
@@ -118,6 +121,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "  pip install failed. Trying from GitHub..."
     & "$VENV_DIR\Scripts\pip.exe" install "git+https://github.com/ronmenator/vex.git" 2>&1 | Out-Null
 }
+$ErrorActionPreference = "Stop"
 
 # Create default config if none exists
 $configDir = "$env:USERPROFILE\.vex"
