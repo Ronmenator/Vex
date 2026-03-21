@@ -309,6 +309,17 @@ async def run_repl() -> None:
                 else:
                     renderer.print_info("Usage: /pref [key] [value]")
                 continue
+            elif cmd == "/update":
+                renderer.print_info("Checking for updates...")
+                from vex.cli.updater import run_update
+
+                success, msg = run_update()
+                if success:
+                    renderer.print_info(msg)
+                    renderer.print_info("Run /restart to apply the update.")
+                else:
+                    renderer.print_error(msg)
+                continue
             elif cmd == "/stop":
                 renderer.print_info("Use Ctrl+C to stop a running agent.")
                 continue
@@ -464,6 +475,9 @@ def main() -> None:
 
     cfg_sub.add_parser("path", help="Show config file path")
 
+    # vex update — pull latest from GitHub
+    subparsers.add_parser("update", help="Update Vex to the latest version")
+
     # vex restart — re-exec the process
     subparsers.add_parser("restart", help="Restart Vex (reload config)")
 
@@ -472,6 +486,13 @@ def main() -> None:
     if args.command == "configure":
         _handle_configure(args)
         return
+
+    if args.command == "update":
+        from vex.cli.updater import run_update
+
+        success, msg = run_update()
+        print(msg)
+        sys.exit(0 if success else 1)
 
     if args.command == "restart":
         # Re-exec ourselves to pick up new config
