@@ -1,7 +1,8 @@
-"""Headless daemon runner — Telegram bot + activity loop without a REPL."""
+"""Headless daemon runner — runs whatever is configured (Telegram, VexNet, Moltbook)."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import signal
@@ -77,12 +78,134 @@ def _check_existing() -> int | None:
             return None
 
 
+def _has_telegram_token(token: str | None, core: object) -> str | None:
+    """Return a Telegram token if one is available, else None."""
+    if token:
+        return token
+    import os as _os
+
+    from_env = _os.environ.get("TELEGRAM_BOT_TOKEN")
+    if from_env:
+        return from_env
+    tg_config = getattr(core, "telegram_config", {})
+    tok = tg_config.get("bot_token")
+    # After env-var interpolation, empty or still-placeholder means unconfigured
+    if tok and not tok.startswith("${"):
+        return tok
+    return None
+
+
+async def _run_headless(workspace: str, token: str | None) -> None:
+    """Run VexCore + activity loop + VexNet without Telegram."""
+    from vex.agent.conversation import Conversation
+    from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT, AgentDefinition
+    from vex.agent.loop import AgentLoop
+    from vex.core import VexCore
+    from vex.llm.base import StreamEvent
+
+    core = VexCore(workspace=workspace)
+
+    # Non-interactive ask function
+    async def _ask(question: str) -> str:
+        return "(User was not available to answer: please proceed with your best judgment)"
+
+    core.set_ask_func(_ask)
+
+    # Connect VexNet
+    if core.vexnet_client:
+        try:
+            await core.vexnet_client.connect()
+            logger.info("VexNet connected: %s", core.vexnet_client.identity.display_name)
+        except Exception as e:
+            logger.warning("VexNet connection failed: %s", e)
+
+    # Start activity loop
+    activity_loop = None
+    if core.vexnet_client or core.moltbook_client:
+        from vex.core.activity import AutonomousActivityLoop
+
+        async def _auto_approve(tc, schema) -> bool:
+            return True
+
+        bg_def = AgentDefinition(
+            agent_id="background",
+            display_name="Vex (background)",
+            system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
+            autonomy_level=3,
+            max_tool_rounds=core.agent_def.max_tool_rounds,
+            workspace_root=core.workspace,
+            dry_run=core.dry_run,
+        )
+        bg_agent = AgentLoop(
+            definition=bg_def,
+            llm=core.llm,
+            tool_registry=core.tool_registry,
+            approval_callback=_auto_approve,
+            audit_log=core.audit_log,
+            tool_executor=core.tool_executor,
+            metrics_collector=core.metrics_collector,
+            conflict_detector=core.conflict_detector,
+            debug_mode=core.debug_mode,
+            prompt_enhancers=core.build_prompt_enhancers(),
+        )
+
+        async def _run_agent(prompt: str) -> str:
+            conv = Conversation()
+            parts: list[str] = []
+            async for event in bg_agent.run(prompt, conv):
+                if isinstance(event, StreamEvent) and event.text_delta:
+                    parts.append(event.text_delta)
+            return "".join(parts)
+
+        activity_interval = core.network_config.get("activity_interval", 300)
+        activity_loop = AutonomousActivityLoop(
+            run_agent=_run_agent,
+            get_vexnet_client=core._get_vexnet_client if core.vexnet_client else None,
+            get_moltbook_client=core._get_moltbook_client if core.moltbook_client else None,
+            interval_seconds=activity_interval,
+            log_dir=os.path.join(core.workspace, ".vex", "activity_logs"),
+        )
+        activity_loop.start()
+        logger.info("Activity loop started (interval=%ds).", activity_interval)
+    else:
+        logger.warning("No Telegram, VexNet, or Moltbook configured — nothing to run.")
+        return
+
+    # Keep the daemon alive
+    stop_event = asyncio.Event()
+
+    def _signal_stop() -> None:
+        stop_event.set()
+
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _signal_stop)
+        except NotImplementedError:
+            # Windows doesn't support add_signal_handler
+            pass
+
+    logger.info("Vex daemon running (headless, no Telegram).")
+    await stop_event.wait()
+
+    # Cleanup
+    if activity_loop:
+        activity_loop.stop()
+    if core.vexnet_client:
+        await core.vexnet_client.disconnect()
+    logger.info("Daemon stopped.")
+
+
 def run_daemon(
     workspace: str | None = None,
     token: str | None = None,
     log_file: str | None = None,
 ) -> None:
-    """Run Vex in headless daemon mode (Telegram bot + activity loop)."""
+    """Run Vex in headless daemon mode.
+
+    If Telegram is configured, runs the full Telegram bot (which includes
+    VexNet + activity loop). Otherwise, runs VexNet + activity loop standalone.
+    """
     existing = _check_existing()
     if existing:
         print(f"Vex daemon already running (PID {existing}).", file=sys.stderr)
@@ -108,9 +231,22 @@ def run_daemon(
     logger.info("Starting Vex daemon (PID %d, workspace=%s)...", os.getpid(), ws)
 
     try:
-        from vex.telegram.bot import run_bot
+        # Check if Telegram is available before committing to run_bot
+        from vex.core import VexCore
 
-        run_bot(token=token, workspace=ws)
+        probe = VexCore(workspace=ws)
+        tg_token = _has_telegram_token(token, probe)
+        del probe  # free resources, will be re-created by run_bot or _run_headless
+
+        if tg_token:
+            logger.info("Telegram token found — starting with Telegram bot.")
+            from vex.telegram.bot import run_bot
+
+            run_bot(token=tg_token, workspace=ws)
+        else:
+            logger.info("No Telegram token — starting headless (VexNet/Moltbook only).")
+            asyncio.run(_run_headless(ws, token))
+
     except KeyboardInterrupt:
         logger.info("Daemon interrupted.")
     except Exception:
