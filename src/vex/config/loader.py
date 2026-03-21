@@ -17,13 +17,14 @@ else:
         import tomli as tomllib  # type: ignore[no-redef]
 
 
-def load_config(config_path: str | None = None) -> dict[str, Any]:
+def load_config(config_path: str | None = None, workspace: str | None = None) -> dict[str, Any]:
     """Load configuration from vex.toml with environment variable overrides.
 
     Search order for config file:
     1. Explicit path
-    2. ./vex.toml (current directory)
-    3. ~/.vex/config.toml (user home)
+    2. <workspace>/vex.toml (if workspace given)
+    3. ./vex.toml (current directory)
+    4. ~/.vex/config.toml (user home)
 
     Environment variable overrides:
     - ANTHROPIC_API_KEY -> llm.anthropic.api_key
@@ -41,10 +42,11 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
     if config_path:
         paths = [Path(config_path)]
     else:
-        paths = [
-            Path.cwd() / "vex.toml",
-            Path.home() / ".vex" / "config.toml",
-        ]
+        paths = []
+        if workspace:
+            paths.append(Path(workspace) / "vex.toml")
+        paths.append(Path.cwd() / "vex.toml")
+        paths.append(Path.home() / ".vex" / "config.toml")
 
     for path in paths:
         if path.is_file():

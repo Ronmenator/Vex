@@ -72,7 +72,7 @@ class VexCore:
 
     def __init__(self, workspace: str | None = None) -> None:
         self.workspace = workspace or os.getcwd()
-        self.config = load_config()
+        self.config = load_config(workspace=self.workspace)
 
         llm_config = self.config.get("llm", {})
         security_config = self.config.get("security", {})

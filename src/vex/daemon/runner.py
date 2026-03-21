@@ -101,12 +101,16 @@ def run_daemon(
     if sys.platform != "win32":
         signal.signal(signal.SIGHUP, _shutdown)  # type: ignore[attr-defined]
 
-    logger.info("Starting Vex daemon (PID %d)...", os.getpid())
+    # Ensure cwd matches workspace so config loader and tools resolve correctly
+    ws = workspace or os.path.expanduser("~")
+    os.chdir(ws)
+
+    logger.info("Starting Vex daemon (PID %d, workspace=%s)...", os.getpid(), ws)
 
     try:
         from vex.telegram.bot import run_bot
 
-        run_bot(token=token, workspace=workspace)
+        run_bot(token=token, workspace=ws)
     except KeyboardInterrupt:
         logger.info("Daemon interrupted.")
     except Exception:
