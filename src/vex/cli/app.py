@@ -478,6 +478,23 @@ def main() -> None:
     # vex update — pull latest from GitHub
     subparsers.add_parser("update", help="Update Vex to the latest version")
 
+    # vex daemon run/install/uninstall/start/stop/status
+    daemon_parser = subparsers.add_parser("daemon", help="Run Vex as a background service")
+    daemon_sub = daemon_parser.add_subparsers(dest="daemon_action")
+
+    daemon_run = daemon_sub.add_parser("run", help="Run headless (foreground)")
+    daemon_run.add_argument("--workspace", help="Workspace directory")
+    daemon_run.add_argument("--token", help="Telegram bot token")
+    daemon_run.add_argument("--log-file", help="Log file path")
+
+    daemon_install = daemon_sub.add_parser("install", help="Install as OS service")
+    daemon_install.add_argument("--workspace", help="Workspace directory")
+
+    daemon_sub.add_parser("uninstall", help="Remove OS service")
+    daemon_sub.add_parser("start", help="Start the installed service")
+    daemon_sub.add_parser("stop", help="Stop the installed service")
+    daemon_sub.add_parser("status", help="Show service status")
+
     # vex restart — re-exec the process
     subparsers.add_parser("restart", help="Restart Vex (reload config)")
 
@@ -493,6 +510,40 @@ def main() -> None:
         success, msg = run_update()
         print(msg)
         sys.exit(0 if success else 1)
+
+    if args.command == "daemon":
+        if args.daemon_action == "run":
+            from vex.daemon.runner import run_daemon
+
+            run_daemon(
+                workspace=args.workspace,
+                token=args.token,
+                log_file=args.log_file,
+            )
+        elif args.daemon_action == "install":
+            from vex.daemon.service import install
+
+            install(workspace=getattr(args, "workspace", None))
+        elif args.daemon_action == "uninstall":
+            from vex.daemon.service import uninstall
+
+            uninstall()
+        elif args.daemon_action == "start":
+            from vex.daemon.service import start
+
+            start()
+        elif args.daemon_action == "stop":
+            from vex.daemon.service import stop
+
+            stop()
+        elif args.daemon_action == "status":
+            from vex.daemon.service import status
+
+            status()
+        else:
+            print("Usage: vex daemon {run|install|uninstall|start|stop|status}")
+            sys.exit(1)
+        return
 
     if args.command == "restart":
         # Re-exec ourselves to pick up new config
