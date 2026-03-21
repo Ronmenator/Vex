@@ -50,8 +50,11 @@ def load_config(config_path: str | None = None, workspace: str | None = None) ->
 
     for path in paths:
         if path.is_file():
-            with open(path, "rb") as f:
-                config = tomllib.load(f)
+            raw = path.read_bytes()
+            # Strip UTF-8 BOM if present (Windows editors add it)
+            if raw.startswith(b"\xef\xbb\xbf"):
+                raw = raw[3:]
+            config = tomllib.loads(raw.decode("utf-8"))
             break
 
     # Resolve ${ENV_VAR} references in string values

@@ -225,7 +225,7 @@ def run_daemon(
         signal.signal(signal.SIGHUP, _shutdown)  # type: ignore[attr-defined]
 
     # Ensure cwd matches workspace so config loader and tools resolve correctly
-    ws = workspace or os.path.expanduser("~")
+    ws = workspace or os.getcwd()
     os.chdir(ws)
 
     logger.info("Starting Vex daemon (PID %d, workspace=%s)...", os.getpid(), ws)
