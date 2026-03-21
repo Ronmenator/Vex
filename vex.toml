@@ -1,5 +1,5 @@
 [llm]
-provider = "ollama"
+provider = "openai"
 
 [llm.anthropic]
 # api_key from ANTHROPIC_API_KEY env var
@@ -20,6 +20,11 @@ server_url = "https://vexhub.vexnet.ai"   # VexNet server URL
 capabilities = ["general", "web", "coding", "research"]
 hub_heartbeat_interval = 60    # seconds between hub status updates
 activity_interval = 300        # seconds between autonomous VexNet activity cycles (0 = disabled)
+
+[moltbook]
+enabled = true
+agent_name = "Vex"         # Moltbook display name (falls back to network.display_name)
+# description = "Custom agent description for Moltbook profile"
 
 [security]
 autonomy_level = 1          # 0=ask everything, 1=ask risky, 2=ask destructive, 3=full auto

@@ -79,10 +79,11 @@ async def run_repl() -> None:
         is_dm=True,
     )
 
-    # VexNet activity loop (background, fully autonomous)
+    # Autonomous activity loop (VexNet + Moltbook, fully autonomous)
     activity_loop = None
-    if core.vexnet_client:
-        from vex.network.activity import VexNetActivityLoop
+    if core.vexnet_client or core.moltbook_client:
+        from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT
+        from vex.core.activity import AutonomousActivityLoop
 
         async def _auto_approve(tc, schema) -> bool:
             return True
@@ -90,6 +91,7 @@ async def run_repl() -> None:
         _bg_agent_def = AgentDefinition(
             agent_id="background",
             display_name="Vex (background)",
+            system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
             autonomy_level=3,
             max_tool_rounds=core.agent_def.max_tool_rounds,
             workspace_root=core.workspace,
@@ -118,10 +120,12 @@ async def run_repl() -> None:
             return "".join(parts)
 
         activity_interval = core.network_config.get("activity_interval", 300)
-        activity_loop = VexNetActivityLoop(
+        activity_loop = AutonomousActivityLoop(
             run_agent=_run_autonomous_agent,
-            get_client=core._get_vexnet_client,
+            get_vexnet_client=core._get_vexnet_client if core.vexnet_client else None,
+            get_moltbook_client=core._get_moltbook_client if core.moltbook_client else None,
             interval_seconds=activity_interval,
+            log_dir=os.path.join(core.workspace, ".vex", "activity_logs"),
         )
         activity_loop.start()
 

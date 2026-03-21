@@ -55,6 +55,10 @@ from vex.tools.shell import ShellTool
 from vex.tools.user_profile_tool import UserProfileTool
 from vex.tools.web_fetch import WebFetchTool
 from vex.tools.web_search import WebSearchTool
+from vex.tools.moltbook import MoltbookTool
+from vex.tools.self_improve import SelfImproveTool
+from vex.self.rules import RuleStore
+from vex.self.enhancer import SelfImprovementEnhancer
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +140,11 @@ class VexCore:
         memory_dir = os.path.join(self.workspace, ".vex", "memory")
         self.memory_store = MemoryStore(memory_dir)
 
+        # --- Self-improvement (bounded Gödel machine) ---
+        self_dir = os.path.join(self.workspace, ".vex", "self")
+        self.rule_store = RuleStore(self_dir)
+        self._self_improvement_enhancer = SelfImprovementEnhancer(self.rule_store)
+
         # --- Chat history (persistent + vector search) ---
         chat_history_dir = os.path.join(self.workspace, ".vex", "chat_history")
         ollama_config = llm_config.get("ollama", {})
@@ -200,6 +209,36 @@ class VexCore:
 
             self._vexnet_enhancer = VexNetPromptEnhancer(self._get_vexnet_client)
 
+        # --- Moltbook (AI agent social network) ---
+        self.moltbook_client = None
+        self._moltbook_enhancer = None
+        moltbook_config = self.config.get("moltbook", {})
+
+        if moltbook_config.get("enabled", True):
+            try:
+                from vex.moltbook.client import MoltbookClient
+
+                moltbook_name = moltbook_config.get(
+                    "agent_name",
+                    network_config.get("display_name", "Vex"),
+                )
+                moltbook_desc = moltbook_config.get("description")
+                self.moltbook_client = MoltbookClient(
+                    data_dir=os.path.join(self.workspace, ".vex", "moltbook"),
+                    agent_name=moltbook_name,
+                    agent_description=moltbook_desc,
+                )
+                logger.info("Moltbook initialized: %s", moltbook_name)
+            except Exception as e:
+                logger.warning("Failed to initialize Moltbook: %s", e)
+
+        if self.moltbook_client:
+            from vex.moltbook.prompt import MoltbookPromptEnhancer
+
+            self._moltbook_enhancer = MoltbookPromptEnhancer(
+                self._get_moltbook_client
+            )
+
         # --- Delegation ---
         self._delegate_func = self._make_delegate_func()
         self._ask_func: Callable[[str], Awaitable[str]] | None = None
@@ -232,6 +271,9 @@ class VexCore:
 
     def _get_vexnet_client(self):
         return self.vexnet_client
+
+    def _get_moltbook_client(self):
+        return self.moltbook_client
 
     def _build_tool_registry(self, max_depth: int) -> ToolRegistry:
         """Build the shared tool registry with all tools."""
@@ -294,6 +336,13 @@ class VexCore:
             registry.register(NetGroupTool(self._get_vexnet_client))
             registry.register(NetConstitutionTool(self._get_vexnet_client))
             registry.register(NetFeedTool(self._get_vexnet_client))
+
+        # Moltbook
+        if self.moltbook_client:
+            registry.register(MoltbookTool(self._get_moltbook_client))
+
+        # Self-improvement
+        registry.register(SelfImproveTool(self.rule_store))
 
         # Plugins
         registry.discover_plugins()
@@ -364,6 +413,13 @@ class VexCore:
         # VexNet
         if self._vexnet_enhancer:
             enhancers.append(self._vexnet_enhancer)
+
+        # Moltbook
+        if self._moltbook_enhancer:
+            enhancers.append(self._moltbook_enhancer)
+
+        # Self-improvement rules
+        enhancers.append(self._self_improvement_enhancer)
 
         # Per-user context (chat ID, user profile, curiosity hints)
         if user_id is not None and chat_id is not None:

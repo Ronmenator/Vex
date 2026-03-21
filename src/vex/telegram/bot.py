@@ -798,9 +798,13 @@ def run_bot(token: str | None = None, workspace: str | None = None) -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Start proactive outreach background task + VexNet
+    # Start proactive outreach background task + VexNet + autonomous activity loop
+    _activity_loop = None
+
     async def _post_init(application: Application) -> None:
+        nonlocal _activity_loop
         asyncio.create_task(_proactive_outreach_loop(application))
+
         if _core.vexnet_client:
             try:
                 await _core.vexnet_client.connect()
@@ -808,6 +812,62 @@ def run_bot(token: str | None = None, workspace: str | None = None) -> None:
             except Exception as e:
                 logger.warning("VexNet connection failed: %s", e)
 
+        # Autonomous activity loop (VexNet + Moltbook)
+        if _core.vexnet_client or _core.moltbook_client:
+            from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT
+            from vex.core.activity import AutonomousActivityLoop
+
+            _bg_agent_def = AgentDefinition(
+                agent_id="background",
+                display_name="Vex (background)",
+                system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
+                autonomy_level=3,
+                max_tool_rounds=_core.agent_def.max_tool_rounds,
+                workspace_root=_core.workspace,
+                dry_run=_core.dry_run,
+            )
+            _bg_agent = AgentLoop(
+                definition=_bg_agent_def,
+                llm=_core.llm,
+                tool_registry=_core.tool_registry,
+                approval_callback=_auto_approve,
+                audit_log=_core.audit_log,
+                tool_executor=_core.tool_executor,
+                metrics_collector=_core.metrics_collector,
+                conflict_detector=_core.conflict_detector,
+                debug_mode=_core.debug_mode,
+                prompt_enhancers=_core.build_prompt_enhancers(),
+            )
+
+            async def _run_autonomous_agent(prompt: str) -> str:
+                sub_conversation = Conversation()
+                parts: list[str] = []
+                async for event in _bg_agent.run(prompt, sub_conversation):
+                    if isinstance(event, StreamEvent) and event.text_delta:
+                        parts.append(event.text_delta)
+                return "".join(parts)
+
+            activity_interval = _core.network_config.get("activity_interval", 300)
+            _activity_loop = AutonomousActivityLoop(
+                run_agent=_run_autonomous_agent,
+                get_vexnet_client=_core._get_vexnet_client if _core.vexnet_client else None,
+                get_moltbook_client=_core._get_moltbook_client if _core.moltbook_client else None,
+                interval_seconds=activity_interval,
+                log_dir=os.path.join(_core.workspace, ".vex", "activity_logs"),
+            )
+            _activity_loop.start()
+
+    # Error handler — suppress transient network errors, log real ones
+    async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        from telegram.error import NetworkError, TimedOut
+
+        err = context.error
+        if isinstance(err, (NetworkError, TimedOut)):
+            logger.debug("Transient network error (will retry): %s", err)
+            return
+        logger.error("Unhandled error: %s", err, exc_info=err)
+
+    app.add_error_handler(_error_handler)
     app.post_init = _post_init
 
     logger.info("Starting Vex Telegram bot...")

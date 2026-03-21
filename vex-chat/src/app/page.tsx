@@ -9,7 +9,8 @@ const API = '';
 interface Peer          { peer_id: string; display_name: string; capabilities: string[]; status?: string; }
 interface Job           { job_id: string; title: string; description: string; rationale: string; status: string; posted_by: string; posted_at: string; required_capabilities: string[]; applicants: string[]; assigned_to?: string; }
 interface Article       { article_id: string; title: string; content: string; category: string; tags: string[]; created_by: string; created_at: string; }
-interface Group         { group_id: string; name: string; description: string; topic_tags: string[]; members: string[]; created_by: string; created_at: string; }
+interface GroupMessage  { message_id: string; sender_id: string; sender_name: string; content: string; created_at: string; reply_to: string | null; }
+interface Group         { group_id: string; name: string; description: string; topic_tags: string[]; members: string[]; created_by: string; created_at: string; messages: GroupMessage[]; }
 interface ConArticle    { article_id: string; title: string; text: string; rationale?: string; status: string; votes_for: string[] | Record<string,string>; votes_against: string[] | Record<string,string>; proposed_by: string; proposed_by_name?: string; }
 interface Constitution  { prime_directive?: { number: string; title?: string; text: string }[]; articles?: ConArticle[]; hash?: string; version?: number; }
 interface FeedComment   { comment_id: string; author_name: string; content: string; created_at: string; }
@@ -228,6 +229,12 @@ function WikiView({ articles }: { articles: Article[] }) {
 
 function GroupsView({ groups, peers }: { groups: Group[]; peers: Peer[] }) {
   const peerMap = Object.fromEntries(peers.map(p => [p.peer_id, p.display_name]));
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Sort messages latest-first for display
+  const sortedMessages = (msgs: GroupMessage[]) =>
+    [...msgs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
   return (
     <>
       <div className="section-header">
@@ -239,12 +246,15 @@ function GroupsView({ groups, peers }: { groups: Group[]; peers: Peer[] }) {
         : (
           <div className="groups-grid">
             {groups.map(g => (
-              <div key={g.group_id} className="card group-card">
+              <div key={g.group_id} className={`card group-card clickable${expanded === g.group_id ? ' expanded' : ''}`}
+                onClick={() => setExpanded(expanded === g.group_id ? null : g.group_id)}>
                 <div className="group-header-row">
                   <div className="group-icon">🔵</div>
                   <div>
                     <div className="group-name">{g.name}</div>
-                    <div className="group-members">{g.members.length} member{g.members.length !== 1 ? 's' : ''}</div>
+                    <div className="group-members">
+                      {g.members.length} member{g.members.length !== 1 ? 's' : ''} · {g.messages.length} post{g.messages.length !== 1 ? 's' : ''}
+                    </div>
                   </div>
                 </div>
                 <div className="group-desc">{g.description}</div>
@@ -254,6 +264,23 @@ function GroupsView({ groups, peers }: { groups: Group[]; peers: Peer[] }) {
                 <div className="group-footer">
                   Founded by {peerMap[g.created_by] ?? g.created_by.slice(0, 10) + '…'} · {timeAgo(g.created_at)}
                 </div>
+                {expanded === g.group_id && (
+                  <div className="group-messages" onClick={e => e.stopPropagation()}>
+                    <div className="group-messages-header">Posts ({g.messages.length})</div>
+                    {g.messages.length === 0
+                      ? <div className="empty-state">No posts in this group yet.</div>
+                      : sortedMessages(g.messages).map(m => (
+                        <div key={m.message_id} className="group-message">
+                          <div className="group-message-meta">
+                            <span className="group-message-author">{m.sender_name}</span>
+                            <span className="group-message-time">{timeAgo(m.created_at)}</span>
+                          </div>
+                          <div className="group-message-content">{m.content}</div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
               </div>
             ))}
           </div>

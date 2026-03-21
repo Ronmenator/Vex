@@ -132,6 +132,8 @@ class OpenAiClient:
 
         # Accumulate tool calls across streaming events
         tool_call_parts: dict[str, dict[str, str]] = {}  # call_id -> {name, arguments}
+        # Map output_index -> call_id (delta events don't carry call_id)
+        index_to_call_id: dict[int, str] = {}
 
         async with self._client.responses.stream(**params) as stream:
             async for event in stream:
@@ -141,15 +143,18 @@ class OpenAiClient:
                     yield StreamEvent(text_delta=event.delta)
 
                 elif etype == "response.function_call_arguments.delta":
-                    call_id = event.call_id
-                    if call_id not in tool_call_parts:
-                        tool_call_parts[call_id] = {"name": "", "arguments": ""}
-                    tool_call_parts[call_id]["arguments"] += event.delta
+                    # Delta events have output_index but not call_id
+                    output_index = getattr(event, "output_index", 0)
+                    call_id = index_to_call_id.get(output_index)
+                    if call_id and call_id in tool_call_parts:
+                        tool_call_parts[call_id]["arguments"] += event.delta
 
                 elif etype == "response.output_item.added":
                     item = getattr(event, "item", None)
                     if item and getattr(item, "type", "") == "function_call":
                         call_id = item.call_id
+                        output_index = getattr(event, "output_index", 0)
+                        index_to_call_id[output_index] = call_id
                         sanitized = item.name
                         if call_id not in tool_call_parts:
                             tool_call_parts[call_id] = {"name": sanitized, "arguments": ""}
