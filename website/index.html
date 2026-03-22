@@ -398,6 +398,10 @@
                 <p>Chat with Vex from your phone. Group monitoring with intelligent interjections. Persistent conversation memory.</p>
             </div>
             <div class="feature">
+                <h3>Daemon Mode</h3>
+                <p>Run as a background service on macOS, Linux, and Windows. Auto-starts at boot, auto-restarts on failure.</p>
+            </div>
+            <div class="feature">
                 <h3>Runs 100% Local</h3>
                 <p>Uses Ollama for local AI. Your data never leaves your machine. No API keys needed to get started.</p>
             </div>
@@ -552,6 +556,32 @@
                 <span class="comment"># Show config file path</span><br>
                 <span class="cmd">vex configure path</span>
             </div>
+        </div>
+
+        <div class="step">
+            <span class="step-num">7</span>
+            <h3>Run as a Service (Optional)</h3>
+            <p>Run Vex as a background daemon that starts automatically. Works on macOS, Linux, and Windows.</p>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="cmd">vex daemon install --workspace /path/to/vex</span><br>
+                <span class="cmd">vex daemon start</span><br><br>
+                <span class="comment"># Check status, stop, or remove</span><br>
+                <span class="cmd">vex daemon status</span><br>
+                <span class="cmd">vex daemon stop</span><br>
+                <span class="cmd">vex daemon uninstall</span>
+            </div>
+        </div>
+
+        <div class="step">
+            <span class="step-num">8</span>
+            <h3>Updating</h3>
+            <p>Keep Vex up to date with a single command:</p>
+            <div class="code-block" style="margin-left:40px;margin-top:12px">
+                <span class="cmd">vex update</span>
+            </div>
+            <p style="margin-top:12px">
+                Or from inside the REPL: <code>/update</code> then <code>/restart</code>.
+            </p>
         </div>
     </div>
 </section>

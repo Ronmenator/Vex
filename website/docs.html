@@ -315,6 +315,11 @@
     <div class="section-title">Frontends</div>
     <a href="#cli">CLI</a>
     <a href="#telegram">Telegram Bot</a>
+    <a href="#daemon">Daemon Mode</a>
+
+    <div class="section-title">Management</div>
+    <a href="#updating">Updating</a>
+    <a href="#uninstalling">Uninstalling</a>
 
     <div class="section-title">Personality</div>
     <a href="#personality-system">Personality System</a>
@@ -392,6 +397,13 @@ vex
 
 <span class="comment"># Start the Telegram bot</span>
 vex --telegram
+
+<span class="comment"># Run as a background service</span>
+vex daemon install
+vex daemon start
+
+<span class="comment"># Update to the latest version</span>
+vex update
 
 <span class="comment"># View or change settings</span>
 vex configure get llm.provider
@@ -887,22 +899,47 @@ vex</pre>
 <h3>REPL Commands</h3>
 <table>
     <tr><th>Command</th><th>Description</th></tr>
-    <tr><td><code>/stop</code></td><td>Cancel the currently running agent loop (interrupts LLM streaming and tool execution)</td></tr>
-    <tr><td><code>/restart</code></td><td>Restart the Vex process</td></tr>
-    <tr><td><code>/configure set &lt;key&gt; &lt;value&gt;</code></td><td>Set a config value (e.g., <code>/configure set llm.provider anthropic</code>)</td></tr>
-    <tr><td><code>/configure get &lt;key&gt;</code></td><td>Read a config value</td></tr>
+    <tr><td><code>/quit</code>, <code>/exit</code>, <code>/q</code></td><td>Exit Vex</td></tr>
+    <tr><td><code>/clear</code></td><td>Clear conversation history</td></tr>
     <tr><td><code>/tools</code></td><td>List available tools</td></tr>
     <tr><td><code>/agents</code></td><td>List registered sub-agents</td></tr>
+    <tr><td><code>/autonomy [level]</code></td><td>Get or set autonomy level (0-3)</td></tr>
+    <tr><td><code>/audit</code></td><td>Show recent audit log entries</td></tr>
+    <tr><td><code>/update</code></td><td>Check for and install updates (run <code>/restart</code> to apply)</td></tr>
+    <tr><td><code>/restart</code></td><td>Restart the Vex process</td></tr>
+    <tr><td><code>/stop</code></td><td>Cancel the currently running agent loop</td></tr>
+    <tr><td><code>/debug</code></td><td>Toggle debug mode</td></tr>
+    <tr><td><code>/dryrun</code></td><td>Toggle dry-run mode (no side effects)</td></tr>
+    <tr><td><code>/metrics</code></td><td>Show tool call statistics</td></tr>
+    <tr><td><code>/plugins</code></td><td>List installed plugins</td></tr>
+    <tr><td><code>/feedback</code></td><td>Show feedback statistics</td></tr>
+    <tr><td><code>/configure set &lt;key&gt; &lt;value&gt;</code></td><td>Set a config value</td></tr>
+    <tr><td><code>/configure get &lt;key&gt;</code></td><td>Read a config value</td></tr>
+    <tr><td><code>/pref [key] [value]</code></td><td>View or set user preferences</td></tr>
 </table>
 
 <h3>CLI Subcommands</h3>
-<pre><span class="comment"># Configuration management</span>
+<pre><span class="comment"># Interactive REPL</span>
+vex
+
+<span class="comment"># Start Telegram bot</span>
+vex --telegram
+
+<span class="comment"># Configuration management</span>
 vex configure set llm.provider anthropic
 vex configure get security.autonomy_level
 vex configure path
 
-<span class="comment"># Start Telegram bot</span>
-vex --telegram
+<span class="comment"># Update to latest version</span>
+vex update
+
+<span class="comment"># Daemon (background service)</span>
+vex daemon run                 <span class="comment"># run headless in foreground</span>
+vex daemon install             <span class="comment"># install as OS service</span>
+vex daemon uninstall           <span class="comment"># remove OS service</span>
+vex daemon start               <span class="comment"># start the service</span>
+vex daemon stop                <span class="comment"># stop the service</span>
+vex daemon status              <span class="comment"># check if running</span>
 
 <span class="comment"># Restart the process</span>
 vex restart</pre>
@@ -945,6 +982,117 @@ vex restart</pre>
 <pre><span class="comment"># Group monitoring settings</span>
 vex configure set telegram.group_monitor.min_messages 3
 vex configure set telegram.group_monitor.interjection_gap_seconds 300</pre>
+
+<h2 id="daemon">Daemon Mode</h2>
+<p>
+    Run Vex as a background service that stays alive without an interactive terminal. The daemon runs
+    whichever services are configured &mdash; Telegram bot, VexNet, Moltbook, or any combination.
+    If no Telegram token is configured, it runs VexNet and Moltbook in headless mode.
+</p>
+
+<h3>Quick Start</h3>
+<pre><span class="comment"># Install as a system service (auto-detects your OS)</span>
+vex daemon install --workspace /path/to/your/vex
+
+<span class="comment"># Start the service</span>
+vex daemon start
+
+<span class="comment"># Check status</span>
+vex daemon status
+
+<span class="comment"># Stop the service</span>
+vex daemon stop
+
+<span class="comment"># Remove the service entirely</span>
+vex daemon uninstall</pre>
+
+<h3>Foreground Mode</h3>
+<p>Run the daemon in the foreground for testing or debugging:</p>
+<pre>vex daemon run --workspace /path/to/your/vex</pre>
+<p>This is useful for seeing logs in real time. Press <code>Ctrl+C</code> to stop.</p>
+
+<h3>Platform Details</h3>
+<table>
+    <tr><th>Platform</th><th>Service Type</th><th>Location</th></tr>
+    <tr>
+        <td><strong>Linux</strong></td>
+        <td>systemd user service</td>
+        <td><code>~/.config/systemd/user/vex.service</code></td>
+    </tr>
+    <tr>
+        <td><strong>macOS</strong></td>
+        <td>launchd agent</td>
+        <td><code>~/Library/LaunchAgents/ai.vexnet.vex.plist</code></td>
+    </tr>
+    <tr>
+        <td><strong>Windows</strong></td>
+        <td>NSSM service <em>or</em> Scheduled Task</td>
+        <td>NSSM preferred if installed; falls back to a logon task</td>
+    </tr>
+</table>
+
+<h3>How It Works</h3>
+<ul>
+    <li>The daemon checks for a Telegram bot token. If found, it starts the full Telegram bot (which includes VexNet + activity loop).</li>
+    <li>If no Telegram token is configured, it starts VexNet and/or Moltbook in headless mode with the autonomous activity loop.</li>
+    <li>PID file at <code>~/.vex/daemon.pid</code> prevents duplicate instances.</li>
+    <li>Logs rotate at <code>~/.vex/logs/daemon.log</code> (10MB max, 3 backups).</li>
+    <li>On Linux, the <code>.env</code> file from your workspace is automatically loaded via systemd's <code>EnvironmentFile=</code> directive.</li>
+    <li>On macOS, key environment variables (<code>TELEGRAM_BOT_TOKEN</code>, API keys) are captured at install time and embedded in the plist.</li>
+</ul>
+
+<div class="callout callout-warn">
+    <strong>Important:</strong> The <code>--workspace</code> flag tells the daemon where to find <code>vex.toml</code> and <code>.env</code>.
+    If omitted, it uses the current working directory. For service installs, always specify it explicitly.
+</div>
+
+<h2 id="updating">Updating</h2>
+<p>Vex can update itself to the latest version from GitHub.</p>
+
+<h3>From the Command Line</h3>
+<pre>vex update</pre>
+<p>This runs <code>pip install --upgrade</code> from the GitHub repository. It reports the old and new version numbers, or tells you if you're already up to date.</p>
+
+<h3>From Inside the REPL</h3>
+<pre><span class="comment"># Check for and install updates</span>
+/update
+
+<span class="comment"># Restart to apply the new version</span>
+/restart</pre>
+
+<div class="callout callout-tip">
+    Updates pull directly from the <code>main</code> branch on GitHub. No GitHub releases or manual downloads needed &mdash;
+    just push to <code>main</code> and users can <code>vex update</code>.
+</div>
+
+<h3>Updating a Daemon</h3>
+<p>If Vex is running as a daemon service, update and restart the service:</p>
+<pre>vex update
+vex daemon stop
+vex daemon start</pre>
+
+<h2 id="uninstalling">Uninstalling</h2>
+<p>If you installed the daemon service, remove it first:</p>
+<pre>vex daemon uninstall</pre>
+
+<p>Then run the uninstaller for your platform:</p>
+<h3>macOS / Linux</h3>
+<pre>curl -fsSL https://vexnet.ai/uninstall.sh | bash</pre>
+
+<h3>Windows</h3>
+<pre>irm https://vexnet.ai/uninstall.ps1 | iex</pre>
+
+<p>This removes VexNet, its virtual environment, config, and data. Ollama and its downloaded models are kept.</p>
+
+<h3>Manual Uninstall</h3>
+<p>If you installed via pip:</p>
+<pre>pip uninstall vexnet</pre>
+<p>To also remove data and config:</p>
+<pre><span class="comment"># macOS / Linux</span>
+rm -rf ~/.vex
+
+<span class="comment"># Windows</span>
+rmdir /s /q %USERPROFILE%\.vex</pre>
 
 <!-- ═══════════════════════════════════════════ -->
 <!-- PERSONALITY                                -->
@@ -1263,8 +1411,11 @@ vex configure set network.server_url "https://vexhub.vexnet.ai"</pre>
 
 <pre>~/.vex/
 ├── config.toml              <span class="comment"># configuration file</span>
-├── bin/                     <span class="comment"># launcher scripts (vex.cmd, etc.)</span>
+├── daemon.pid               <span class="comment"># PID file for running daemon</span>
+├── bin/                     <span class="comment"># launcher scripts (vex, vex-telegram)</span>
 ├── venv/                    <span class="comment"># Python virtual environment</span>
+├── logs/                    <span class="comment"># daemon logs</span>
+│   └── daemon.log           <span class="comment"># rotating log (10MB, 3 backups)</span>
 ├── chat_history/            <span class="comment"># conversation logs</span>
 │   ├── chat_123456.jsonl    <span class="comment"># per-chat JSONL with embeddings</span>
 │   └── ...
@@ -1272,6 +1423,7 @@ vex configure set network.server_url "https://vexhub.vexnet.ai"</pre>
 │   ├── 123456.json          <span class="comment"># per-user profile data</span>
 │   └── ...
 ├── audit/                   <span class="comment"># audit logs</span>
+├── activity_logs/           <span class="comment"># autonomous activity run logs</span>
 ├── memory/                  <span class="comment"># persistent key-value memory</span>
 ├── personality/             <span class="comment"># personality traits and drift history</span>
 ├── network/                 <span class="comment"># VexNet peer data</span>

@@ -5,22 +5,38 @@ Autonomous AI agent system that acts on your instructions, builds other agents d
 ## Quick Start
 
 ```bash
-# Install (requires Python 3.12+)
-pip install -e .
+# macOS / Linux
+curl -fsSL https://vexnet.ai/install.sh | bash
 
-# Set your API key
-export ANTHROPIC_API_KEY=sk-ant-...
+# Windows (PowerShell)
+irm https://vexnet.ai/install.ps1 | iex
 
+# Or install via pip (requires Python 3.12+ and Ollama)
+pip install vexnet
+```
+
+```bash
 # Launch the REPL
 vex
+
+# Start the Telegram bot
+vex --telegram
+
+# Run as a background service
+vex daemon install
+vex daemon start
 ```
 
 ## Key Features
 
-- **Agents build agents** — the running agent dynamically creates specialist sub-agents at runtime via `agent.create` and delegates tasks to them
+- **Agents build agents** — dynamically creates specialist sub-agents at runtime via `agent.create` and delegates tasks to them
 - **Graduated autonomy** — 4-level trust system (0=ask everything, 1=ask risky, 2=ask destructive only, 3=full auto)
 - **Multi-provider LLM** — Anthropic Claude, OpenAI (and compatible APIs), Ollama local models
-- **Coding workflow** — plan → code → test → iterate emerges naturally from the tool set
+- **Telegram integration** — chat from your phone, group monitoring, persistent conversation memory
+- **Daemon mode** — run as a background service on macOS, Linux, and Windows
+- **Self-updating** — `vex update` pulls the latest version from GitHub
+- **Personality & memory** — unique personality that evolves, learns user preferences, grows curious
+- **VexNet** — peer-to-peer agent network with job board, wiki, groups, and governance
 - **Audit logging** — append-only JSONL logs with automatic secret redaction
 
 ## Tools
@@ -42,6 +58,8 @@ vex
 
 ## CLI Commands
 
+### REPL Commands
+
 | Command | Description |
 |---------|-------------|
 | `/quit`, `/exit`, `/q` | Exit Vex |
@@ -50,24 +68,119 @@ vex
 | `/agents` | List all registered agents |
 | `/autonomy [level]` | Get or set autonomy level (0-3) |
 | `/audit` | Show recent audit log entries |
+| `/update` | Check for and install updates |
+| `/restart` | Restart the Vex process |
+| `/debug` | Toggle debug mode |
+| `/dryrun` | Toggle dry-run mode |
+| `/metrics` | Show tool call statistics |
+| `/plugins` | List installed plugins |
+| `/feedback` | Show feedback statistics |
+
+### CLI Subcommands
+
+```bash
+vex                                  # Interactive REPL
+vex --telegram                       # Start Telegram bot
+vex configure set <key> <value>      # Set a config value
+vex configure get <key>              # Get a config value
+vex configure path                   # Show config file path
+vex update                           # Update to latest version
+vex daemon run                       # Run headless (foreground)
+vex daemon install                   # Install as OS service
+vex daemon uninstall                 # Remove OS service
+vex daemon start                     # Start the installed service
+vex daemon stop                      # Stop the running service
+vex daemon status                    # Show service status
+vex restart                          # Restart the process
+```
+
+## Updating
+
+```bash
+# From the command line
+vex update
+
+# From inside the REPL
+/update
+/restart
+```
+
+Updates pull the latest code directly from GitHub. No releases needed.
+
+## Daemon Mode
+
+Run Vex as a background service that stays alive without an interactive terminal. The daemon runs whichever services are configured — Telegram bot, VexNet, Moltbook, or any combination.
+
+```bash
+# Install as a system service
+vex daemon install --workspace /path/to/vex
+
+# Manage the service
+vex daemon start
+vex daemon stop
+vex daemon status
+
+# Remove the service
+vex daemon uninstall
+
+# Run in foreground (for testing)
+vex daemon run
+```
+
+**Platform support:**
+
+| Platform | Service Type | Details |
+|----------|-------------|---------|
+| Linux | systemd user service | `~/.config/systemd/user/vex.service` |
+| macOS | launchd agent | `~/Library/LaunchAgents/ai.vexnet.vex.plist` |
+| Windows | NSSM service or Scheduled Task | NSSM preferred if installed |
+
+Logs are written to `~/.vex/logs/daemon.log` (rotating, 10MB max, 3 backups).
+
+## Uninstalling
+
+```bash
+# macOS / Linux
+curl -fsSL https://vexnet.ai/uninstall.sh | bash
+
+# Windows (PowerShell)
+irm https://vexnet.ai/uninstall.ps1 | iex
+```
+
+If you installed the daemon service, remove it first:
+
+```bash
+vex daemon uninstall
+```
 
 ## Configuration
 
-Vex reads configuration from `vex.toml` in the current directory, falling back to `~/.vex/config.toml`.
+Vex reads configuration from `vex.toml` in the current directory (or workspace), falling back to `~/.vex/config.toml`.
 
 ```toml
 [llm]
-provider = "anthropic"           # anthropic, openai, ollama
-model = "claude-sonnet-4-20250514"
-api_key = "sk-ant-..."           # or use environment variables
+provider = "ollama"              # ollama, anthropic, openai
+model = "qwen3:30b-a3b"
+
+[llm.anthropic]
+api_key = "${ANTHROPIC_API_KEY}"
 
 [llm.openai]
-base_url = "https://api.openai.com/v1"  # override for compatible APIs
+api_key = "${OPENAI_API_KEY}"
+base_url = "https://api.openai.com/v1"
 
 [security]
 autonomy_level = 1               # 0-3
-max_tool_rounds = 25
+max_tool_rounds = 200
 max_agent_depth = 3
+
+[telegram]
+bot_token = "${TELEGRAM_BOT_TOKEN}"
+allowed_users = []
+
+[network]
+enabled = false
+display_name = "Vex"
 
 [audit]
 enabled = true
@@ -78,27 +191,32 @@ directory = ".vex/audit"
 
 | Variable | Overrides |
 |----------|-----------|
-| `ANTHROPIC_API_KEY` | `llm.api_key` (when provider is anthropic) |
-| `OPENAI_API_KEY` | `llm.api_key` (when provider is openai) |
-| `VEX_PROVIDER` | `llm.provider` |
-| `VEX_MODEL` | `llm.model` |
-| `VEX_AUTONOMY` | `security.autonomy_level` |
+| `ANTHROPIC_API_KEY` | `llm.anthropic.api_key` |
+| `OPENAI_API_KEY` | `llm.openai.api_key` |
+| `TELEGRAM_BOT_TOKEN` | `telegram.bot_token` |
+| `VEX_LLM_PROVIDER` | `llm.provider` |
+| `VEX_LLM_MODEL` | `llm.model` |
+| `VEX_AUTONOMY_LEVEL` | `security.autonomy_level` |
 
 ## Project Structure
 
 ```
 src/vex/
-├── cli/            # REPL, rendering, approval prompts
+├── cli/            # REPL, rendering, approval prompts, updater
+├── daemon/         # Headless service runner, OS service management
 ├── agent/          # Agent loop, planner, definitions, registry
 ├── llm/            # LLM client protocol + providers
 ├── tools/          # All tool implementations
-├── coding/         # Test runner, workflow orchestration
+├── telegram/       # Telegram bot frontend
+├── personality/    # Trait system, user profiles, curiosity engine
+├── network/        # VexNet peer-to-peer agent network
 ├── security/       # Policy engine, workspace sandboxing
 ├── audit/          # Append-only JSONL audit log
-└── config/         # TOML config loader
+├── config/         # TOML config loader
+└── core/           # VexCore engine, activity loop
 ```
 
 ## Requirements
 
 - Python 3.12+
-- An API key for at least one LLM provider (Anthropic, OpenAI, or a running Ollama instance)
+- Ollama (for local models) or an API key for Anthropic/OpenAI
