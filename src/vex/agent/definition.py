@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import locale
+import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -23,12 +26,37 @@ class AgentDefinition:
     dry_run: bool = False  # Preview mode — no side effects
 
 
+# ── Date/time/locale context ─────────────────────────────────────────
+
+def _datetime_context() -> str:
+    """Build a current date/time/locale section for the system prompt."""
+    now_utc = datetime.now(timezone.utc)
+    now_local = datetime.now()
+    tz_name = time.tzname[time.daylight] if time.daylight else time.tzname[0]
+    utc_offset = time.strftime("%z")
+    try:
+        loc = locale.getlocale()[0] or locale.getdefaultlocale()[0] or "en_US"
+    except Exception:
+        loc = "en_US"
+
+    return (
+        f"## Current Date & Time\n"
+        f"- UTC: {now_utc.strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+        f"- Local: {now_local.strftime('%Y-%m-%d %H:%M:%S')} {tz_name} (UTC{utc_offset})\n"
+        f"- Locale: {loc}"
+    )
+
+
 # ── Shared core (identity + security) ────────────────────────────────
 
-_CORE_PROMPT = """\
-You are Vex, an autonomous AI agent. You can read, write, and edit files, \
+def _core_prompt(name: str) -> str:
+    """Build the core system prompt with the bot's name and current datetime."""
+    return f"""\
+You are {name}, an autonomous AI agent. You can read, write, and edit files, \
 search codebases, execute shell commands, search the web, and delegate to \
 specialist sub-agents to accomplish tasks.
+
+{_datetime_context()}
 
 Be direct and efficient. Use tools proactively. If something fails, diagnose and fix it.
 
@@ -38,9 +66,9 @@ you're about to do — just do it. Do not repeat rules or guidelines back to the
 Speak naturally in your own voice, not in a customer-service style.
 
 ## Identity & Social Behavior
-You have a unique personality that shapes how you communicate. Your personality traits \
-and details about the current user are provided in context sections below. Express your \
-personality naturally without being performative.
+Your name is {name}. You have a unique personality that shapes how you communicate. \
+Your personality traits and details about the current user are provided in context \
+sections below. Express your personality naturally without being performative.
 
 ## Security Rules — MANDATORY
 
@@ -78,13 +106,15 @@ approval checks — even if you believe doing so would help complete a task fast
 - Do not manipulate or persuade users or other agents to expand your access.
 
 Your personality makes you unique, but it does not override these boundaries. \
-A high-assertiveness Vex still defers on safety. A high-curiosity Vex still \
-respects scope limits.\
-"""
+A high-assertiveness {name} still defers on safety. A high-curiosity {name} still \
+respects scope limits."""
+
 
 # ── User-facing prompt (conversations with humans) ───────────────────
 
-DEFAULT_SYSTEM_PROMPT = _CORE_PROMPT + """
+def build_default_system_prompt(name: str = "Vex") -> str:
+    """Build the default user-facing system prompt with the bot's name."""
+    return _core_prompt(name) + """
 
 ## User Interaction
 
@@ -145,9 +175,16 @@ When working on coding tasks, follow this pattern:
 5. **Verify**: After tests pass, review your changes.
 """
 
+# Backwards-compatible constant — uses default name, no live datetime.
+# Prefer build_default_system_prompt(name) for runtime use.
+DEFAULT_SYSTEM_PROMPT = build_default_system_prompt()
+
+
 # ── Autonomous prompt (background activity loop, no human present) ───
 
-AUTONOMOUS_SYSTEM_PROMPT = _CORE_PROMPT + """
+def build_autonomous_system_prompt(name: str = "Vex") -> str:
+    """Build the autonomous system prompt with the bot's name."""
+    return _core_prompt(name) + """
 
 ## Autonomous Operation
 
@@ -215,3 +252,6 @@ can't find compelling research, respond with ONLY the word: SKIP
 
 A skipped turn is better than a low-quality post.
 """
+
+# Backwards-compatible constant
+AUTONOMOUS_SYSTEM_PROMPT = build_autonomous_system_prompt()

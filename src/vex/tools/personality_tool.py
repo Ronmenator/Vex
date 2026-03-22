@@ -44,7 +44,8 @@ class PersonalityTool:
         profile = self._manager.load()
 
         if action == "traits":
-            lines = [f"Personality born: {profile.born_at[:10]}"]
+            lines = [f"Name: {profile.name or '(not set)'}"]
+            lines.append(f"Personality born: {profile.born_at[:10]}")
             lines.append(f"Total interactions: {profile.interaction_count}")
             lines.append("\nTraits:")
             for name, value in profile.traits.items():

@@ -82,14 +82,21 @@ class DriftEvent:
 
 @dataclass
 class PersonalityProfile:
+    name: str = ""
     traits: dict[str, float] = field(default_factory=dict)
     born_at: str = ""
     interaction_count: int = 0
     drift_history: list[dict[str, Any]] = field(default_factory=list)
     quirks: list[str] = field(default_factory=list)
 
+    @property
+    def is_onboarded(self) -> bool:
+        """True if onboarding has been completed (name + traits set)."""
+        return bool(self.name and self.traits)
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "name": self.name,
             "traits": self.traits,
             "born_at": self.born_at,
             "interaction_count": self.interaction_count,
@@ -100,6 +107,7 @@ class PersonalityProfile:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PersonalityProfile:
         return cls(
+            name=data.get("name", ""),
             traits=data.get("traits", {}),
             born_at=data.get("born_at", ""),
             interaction_count=data.get("interaction_count", 0),
@@ -109,7 +117,9 @@ class PersonalityProfile:
 
 
 class PersonalityManager:
-    """Manages Vex's personality — birth, persistence, evolution, and prompt generation."""
+    """Manages the bot's personality — birth, persistence, evolution, and prompt generation."""
+
+    DEFAULT_NAME = "Vex"
 
     def __init__(self, directory: str) -> None:
         self._dir = Path(directory)
@@ -118,6 +128,18 @@ class PersonalityManager:
         self._profile: PersonalityProfile | None = None
         self._daily_drift: dict[str, float] = {}  # trait -> total drift today
         self._drift_date: str = ""
+
+    @property
+    def name(self) -> str:
+        """The bot's chosen name (from profile, or default)."""
+        profile = self.load()
+        return profile.name or self.DEFAULT_NAME
+
+    @property
+    def is_onboarded(self) -> bool:
+        """Whether the personality has been set up via onboarding."""
+        profile = self.load()
+        return profile.is_onboarded
 
     def load(self) -> PersonalityProfile:
         """Load or generate the personality profile.
@@ -214,7 +236,7 @@ class PersonalityManager:
         """Build a compact personality description for system prompt injection."""
         profile = self.load()
 
-        lines = ["## Your Personality"]
+        lines = [f"## Your Personality (you are {profile.name or 'an AI assistant'})"]
         for trait_name, value in profile.traits.items():
             desc_map = _TRAIT_DESCRIPTIONS.get(trait_name)
             if not desc_map:

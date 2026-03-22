@@ -11,7 +11,10 @@ import os
 from typing import Any, Awaitable, Callable
 
 from vex.agent.conversation import Conversation
-from vex.agent.definition import AgentDefinition
+from vex.agent.definition import (
+    AgentDefinition,
+    build_default_system_prompt,
+)
 from vex.agent.loop import AgentLoop, ApprovalCallback
 from vex.agent.registry import AgentRegistry
 from vex.agent.strategy import StrategyAdvisor
@@ -108,11 +111,18 @@ class VexCore:
             enabled=audit_config.get("enabled", True),
         )
 
+        # --- Personality (load early — name is used in agent definition) ---
+        personality_dir = os.path.join(self.workspace, ".vex", "personality")
+        self.personality_manager = PersonalityManager(personality_dir)
+        self.personality_manager.load()
+
         # --- Agent definition ---
         self.dry_run = security_config.get("dry_run", False)
+        self.bot_name = self.personality_manager.name
         self.agent_def = AgentDefinition(
             agent_id="default",
-            display_name="Vex",
+            display_name=self.bot_name,
+            system_prompt=build_default_system_prompt(self.bot_name),
             autonomy_level=security_config.get("autonomy_level", 1),
             max_tool_rounds=security_config.get("max_tool_rounds", 25),
             workspace_root=self.workspace,
@@ -161,11 +171,6 @@ class VexCore:
             storage_dir=chat_history_dir,
             embedding_client=self.embedding_client,
         )
-
-        # --- Personality ---
-        personality_dir = os.path.join(self.workspace, ".vex", "personality")
-        self.personality_manager = PersonalityManager(personality_dir)
-        self.personality_manager.load()
 
         # --- User profiles ---
         users_dir = os.path.join(self.workspace, ".vex", "users")

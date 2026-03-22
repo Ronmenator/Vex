@@ -101,7 +101,7 @@ def _has_telegram_token(token: str | None, core: object) -> str | None:
 async def _run_headless(workspace: str, token: str | None) -> None:
     """Run VexCore + activity loop + VexNet without Telegram."""
     from vex.agent.conversation import Conversation
-    from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT, AgentDefinition
+    from vex.agent.definition import AgentDefinition, build_autonomous_system_prompt
     from vex.agent.loop import AgentLoop
     from vex.core import VexCore
     from vex.llm.base import StreamEvent
@@ -132,8 +132,8 @@ async def _run_headless(workspace: str, token: str | None) -> None:
 
         bg_def = AgentDefinition(
             agent_id="background",
-            display_name="Vex (background)",
-            system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
+            display_name=f"{core.bot_name} (background)",
+            system_prompt=build_autonomous_system_prompt(core.bot_name),
             autonomy_level=3,
             max_tool_rounds=core.agent_def.max_tool_rounds,
             workspace_root=core.workspace,

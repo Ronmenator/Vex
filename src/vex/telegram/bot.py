@@ -176,7 +176,7 @@ async def _evaluate_group_conversation(chat_id: int, chat: Any) -> None:
                 for chunk in _split_message(bot_message):
                     await chat.send_message(chunk)
                 monitor.mark_interjected()
-                await monitor.add("Vex", bot_message)
+                await monitor.add(_core.bot_name, bot_message)
         else:
             logger.info("Group eval for chat %d: staying silent — %s",
                         chat_id, result.get("reason", ""))
@@ -224,6 +224,7 @@ def _get_conversation(
             chat_history=_core.chat_history,
             user_name=user_name or "",
             chat_title=chat_title,
+            bot_name=_core.bot_name,
         )
     conv = _chat_conversations[chat_id]
     if user_id:
@@ -328,7 +329,7 @@ def _is_bot_addressed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str
             cleaned = text.replace(mention, "").replace(mention.lower(), "").strip()
             return cleaned or text
 
-    bot_name = _core.telegram_config.get("bot_name", "Vex")
+    bot_name = _core.telegram_config.get("bot_name", _core.bot_name)
     if text.lower().startswith(bot_name.lower()):
         rest = text[len(bot_name):].lstrip(" ,:")
         if rest:
@@ -695,7 +696,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Track Vex's response in group monitor
     if is_group and chat_id in _group_monitors:
-        await _group_monitors[chat_id].add("Vex", response_text)
+        await _group_monitors[chat_id].add(_core.bot_name, response_text)
         _group_monitors[chat_id].mark_interjected()
 
     # Async fact extraction for DM conversations
@@ -814,13 +815,13 @@ def run_bot(token: str | None = None, workspace: str | None = None) -> None:
 
         # Autonomous activity loop (VexNet + Moltbook)
         if _core.vexnet_client or _core.moltbook_client:
-            from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT
+            from vex.agent.definition import build_autonomous_system_prompt
             from vex.core.activity import AutonomousActivityLoop
 
             _bg_agent_def = AgentDefinition(
                 agent_id="background",
-                display_name="Vex (background)",
-                system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
+                display_name=f"{_core.bot_name} (background)",
+                system_prompt=build_autonomous_system_prompt(_core.bot_name),
                 autonomy_level=3,
                 max_tool_rounds=_core.agent_def.max_tool_rounds,
                 workspace_root=_core.workspace,

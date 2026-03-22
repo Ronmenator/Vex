@@ -42,6 +42,25 @@ async def run_repl() -> None:
         history=FileHistory(history_file),
     )
 
+    # Auto-onboard on first run
+    if not core.personality_manager.is_onboarded:
+        from vex.personality.onboarding import run_onboarding
+
+        renderer.print_info("  First run detected — let's set up your AI's personality!")
+
+        async def _onboard_ask(question: str) -> str:
+            return await session.prompt_async(f"{question}\n  > ")
+
+        def _onboard_tell(message: str) -> None:
+            console.print(message)
+
+        await run_onboarding(
+            personality_manager=core.personality_manager,
+            llm=core.llm,
+            ask=_onboard_ask,
+            tell=_onboard_tell,
+        )
+
     # CLI-specific components (session passed for async-safe input)
     approval_manager = ApprovalManager(renderer, session=session)
     feedback_collector = FeedbackCollector(core.workspace)
@@ -68,7 +87,8 @@ async def run_repl() -> None:
         chat_id=user_id,
         chat_history=core.chat_history,
         user_name=user_name,
-        chat_title=f"CLI session",
+        chat_title="CLI session",
+        bot_name=core.bot_name,
     )
 
     # Create agent with CLI-specific approval callback
@@ -82,7 +102,7 @@ async def run_repl() -> None:
     # Autonomous activity loop (VexNet + Moltbook, fully autonomous)
     activity_loop = None
     if core.vexnet_client or core.moltbook_client:
-        from vex.agent.definition import AUTONOMOUS_SYSTEM_PROMPT
+        from vex.agent.definition import build_autonomous_system_prompt
         from vex.core.activity import AutonomousActivityLoop
 
         async def _auto_approve(tc, schema) -> bool:
@@ -90,8 +110,8 @@ async def run_repl() -> None:
 
         _bg_agent_def = AgentDefinition(
             agent_id="background",
-            display_name="Vex (background)",
-            system_prompt=AUTONOMOUS_SYSTEM_PROMPT,
+            display_name=f"{core.bot_name} (background)",
+            system_prompt=build_autonomous_system_prompt(core.bot_name),
             autonomy_level=3,
             max_tool_rounds=core.agent_def.max_tool_rounds,
             workspace_root=core.workspace,
@@ -137,7 +157,7 @@ async def run_repl() -> None:
             renderer.print_error(f"VexNet connection failed: {e}")
             core.vexnet_client = None
 
-    renderer.print_welcome(core.provider, core.model, core.workspace)
+    renderer.print_welcome(core.bot_name, core.provider, core.model, core.workspace)
     if core.dry_run:
         renderer.print_info("  [DRY RUN mode enabled — no write operations will execute]")
     if core.debug_mode.enabled:
@@ -417,6 +437,33 @@ async def run_repl() -> None:
             renderer.print_error(str(e))
 
 
+async def _run_onboard(workspace: str | None = None) -> None:
+    """Run the interactive onboarding flow."""
+    from prompt_toolkit import PromptSession
+
+    from vex.core import VexCore
+    from vex.personality.onboarding import run_onboarding
+
+    console = Console()
+    ws = workspace or os.getcwd()
+    core = VexCore(workspace=ws)
+
+    session: PromptSession[str] = PromptSession()
+
+    async def ask(question: str) -> str:
+        return await session.prompt_async(f"{question}\n  > ")
+
+    def tell(message: str) -> None:
+        console.print(message)
+
+    await run_onboarding(
+        personality_manager=core.personality_manager,
+        llm=core.llm,
+        ask=ask,
+        tell=tell,
+    )
+
+
 def _handle_configure(args) -> None:
     """Handle `vex configure` subcommands."""
     from vex.config.writer import config_get, config_set, find_config_path
@@ -495,6 +542,12 @@ def main() -> None:
     daemon_sub.add_parser("stop", help="Stop the installed service")
     daemon_sub.add_parser("status", help="Show service status")
 
+    # vex onboard — interactive personality setup
+    onboard_parser = subparsers.add_parser(
+        "onboard", help="Set up your AI's personality and name"
+    )
+    onboard_parser.add_argument("--workspace", help="Workspace directory")
+
     # vex restart — re-exec the process
     subparsers.add_parser("restart", help="Restart Vex (reload config)")
 
@@ -543,6 +596,10 @@ def main() -> None:
         else:
             print("Usage: vex daemon {run|install|uninstall|start|stop|status}")
             sys.exit(1)
+        return
+
+    if args.command == "onboard":
+        asyncio.run(_run_onboard(workspace=getattr(args, "workspace", None)))
         return
 
     if args.command == "restart":

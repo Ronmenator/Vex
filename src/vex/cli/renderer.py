@@ -38,10 +38,10 @@ class Renderer:
         self.console = console or Console()
         self._stream_buffer = ""
 
-    def print_welcome(self, provider: str, model: str, workspace: str) -> None:
+    def print_welcome(self, bot_name: str, provider: str, model: str, workspace: str) -> None:
         self.console.print()
-        title = Text("Vex", style="bold bright_cyan")
-        title.append(" v0.1", style="dim")
+        title = Text(bot_name, style="bold bright_cyan")
+        title.append(" v0.2", style="dim")
         title.append(" | ", style="dim")
         title.append(model, style="bright_white")
         title.append(" | ", style="dim")

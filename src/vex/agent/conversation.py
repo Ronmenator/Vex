@@ -73,6 +73,7 @@ class RetrievalConversation(Conversation):
         chat_history: ChatHistory,
         user_name: str = "",
         chat_title: str = "",
+        bot_name: str = "Vex",
         recent_count: int = 6,
         retrieval_count: int = 10,
     ) -> None:
@@ -82,6 +83,7 @@ class RetrievalConversation(Conversation):
         self._chat_history = chat_history
         self._user_name = user_name
         self._chat_title = chat_title
+        self._bot_name = bot_name
         self._recent_count = recent_count
         self._retrieval_count = retrieval_count
         # Track messages we've already persisted to avoid double-writes
@@ -94,7 +96,7 @@ class RetrievalConversation(Conversation):
     def add_assistant(self, content: str | None) -> None:
         if content:
             super().add_assistant(content)
-            self._schedule_persist("assistant", "Vex", content)
+            self._schedule_persist("assistant", self._bot_name, content)
 
     def _schedule_persist(self, role: str, sender: str, text: str) -> None:
         """Fire-and-forget persistence to ChatHistory."""
