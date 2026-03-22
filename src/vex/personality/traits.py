@@ -120,18 +120,22 @@ class PersonalityManager:
         self._drift_date: str = ""
 
     def load(self) -> PersonalityProfile:
-        """Load or generate the personality profile."""
-        if self._profile:
-            return self._profile
+        """Load or generate the personality profile.
 
+        Always re-reads from disk when the file exists, so that multiple
+        processes (CLI, daemon, Telegram) stay in sync with the same
+        profile rather than diverging with stale in-memory caches.
+        """
         if self._file.exists():
             try:
                 data = json.loads(self._file.read_text(encoding="utf-8"))
                 self._profile = PersonalityProfile.from_dict(data)
             except (json.JSONDecodeError, KeyError):
-                self._profile = self._generate_birth()
+                if not self._profile:
+                    self._profile = self._generate_birth()
         else:
-            self._profile = self._generate_birth()
+            if not self._profile:
+                self._profile = self._generate_birth()
 
         return self._profile
 

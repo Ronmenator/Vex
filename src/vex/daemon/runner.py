@@ -234,12 +234,20 @@ def run_daemon(
     logger.info("Starting Vex daemon (PID %d, workspace=%s)...", os.getpid(), ws)
 
     try:
-        # Check if Telegram is available before committing to run_bot
-        from vex.core import VexCore
+        # Check if Telegram is available — use config directly instead of
+        # creating a full VexCore (which would generate a personality birth
+        # profile that gets discarded, causing race conditions with the real
+        # VexCore created later).
+        from vex.config.loader import load_config
 
-        probe = VexCore(workspace=ws)
-        tg_token = _has_telegram_token(token, probe)
-        del probe  # free resources, will be re-created by run_bot or _run_headless
+        _probe_config = load_config(workspace=ws)
+        _probe_tg = _probe_config.get("telegram", {})
+        tg_token = token or os.environ.get("TELEGRAM_BOT_TOKEN")
+        if not tg_token:
+            _cfg_tok = _probe_tg.get("bot_token")
+            if _cfg_tok and not _cfg_tok.startswith("${"):
+                tg_token = _cfg_tok
+        del _probe_config, _probe_tg
 
         if tg_token:
             logger.info("Telegram token found — starting with Telegram bot.")
