@@ -62,6 +62,7 @@ from vex.tools.moltbook import MoltbookTool
 from vex.tools.self_improve import SelfImproveTool
 from vex.self.rules import RuleStore
 from vex.self.enhancer import SelfImprovementEnhancer
+from vex.skills.enhancer import SkillsEnhancer
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,10 @@ class VexCore:
         self_dir = os.path.join(self.workspace, ".vex", "self")
         self.rule_store = RuleStore(self_dir)
         self._self_improvement_enhancer = SelfImprovementEnhancer(self.rule_store)
+
+        # --- Skills (.md-based extensible skill definitions) ---
+        skills_dir = os.path.join(self.workspace, ".vex", "skills")
+        self._skills_enhancer = SkillsEnhancer(skills_dir)
 
         # --- Chat history (persistent + vector search) ---
         chat_history_dir = os.path.join(self.workspace, ".vex", "chat_history")
@@ -425,6 +430,9 @@ class VexCore:
 
         # Self-improvement rules
         enhancers.append(self._self_improvement_enhancer)
+
+        # Skills (trigger-based .md skill files)
+        enhancers.append(self._skills_enhancer)
 
         # Per-user context (chat ID, user profile, curiosity hints)
         if user_id is not None and chat_id is not None:

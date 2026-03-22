@@ -1,6 +1,6 @@
 [project]
 name = "vexnet"
-version = "0.2.6"
+version = "0.2.7"
 description = "Autonomous AI agent that reads, writes, searches, browses, and builds other agents. Runs locally with Ollama."
 readme = "README.md"
 license = {text = "MIT"}
