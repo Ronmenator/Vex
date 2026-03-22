@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from vex.tools.base import RiskTier, ToolContext, ToolResult, ToolSchema
 
 logger = logging.getLogger(__name__)
+
+# Cooldown: reject duplicate comments on the same post within this window.
+_COMMENT_COOLDOWN_S = 3600  # 1 hour
 
 
 class MoltbookTool:
@@ -16,6 +20,8 @@ class MoltbookTool:
 
     def __init__(self, get_client):
         self._get_client = get_client
+        # Track {post_id: timestamp} of recent comments to enforce one-per-post limit
+        self._recent_comments: dict[str, float] = {}
 
     @property
     def schema(self) -> ToolSchema:
@@ -142,6 +148,13 @@ class MoltbookTool:
             timeout=30,
         )
 
+    def _purge_stale_comments(self) -> None:
+        """Remove comment records older than the cooldown window."""
+        cutoff = time.time() - _COMMENT_COOLDOWN_S
+        self._recent_comments = {
+            pid: ts for pid, ts in self._recent_comments.items() if ts > cutoff
+        }
+
     async def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
         client = self._get_client()
         if not client or not client.enabled:
@@ -210,6 +223,15 @@ class MoltbookTool:
                 content = arguments.get("content", "").strip()
                 if not post_id or not content:
                     return ToolResult.fail("post_id and content are required for comment action")
+
+                # ── Guard: one comment per post per cooldown window ──
+                self._purge_stale_comments()
+                if post_id in self._recent_comments:
+                    return ToolResult.fail(
+                        f"Already commented on post {post_id} recently. "
+                        f"Move on to a different post or thread."
+                    )
+
                 parent_id = arguments.get("parent_id")
                 result = await client.create_comment(post_id, content, parent_id=parent_id)
                 # Handle verification
@@ -220,6 +242,9 @@ class MoltbookTool:
                         f"Challenge: {result.get('challenge', 'Solve the math problem')}\n"
                         f"Use action 'verify' with the verification_code and your answer."
                     )
+
+                # Record this comment to prevent duplicates
+                self._recent_comments[post_id] = time.time()
                 return ToolResult.ok(f"Comment added to post {post_id}")
 
             elif action == "delete_post":
