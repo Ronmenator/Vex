@@ -24,11 +24,14 @@ def _setup_logging(log_file: str | None = None) -> None:
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
     file_handler = RotatingFileHandler(
-        log_path, maxBytes=10 * 1024 * 1024, backupCount=3
+        log_path, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"
     )
     file_handler.setFormatter(fmt)
 
-    stderr_handler = logging.StreamHandler(sys.stderr)
+    # Force UTF-8 on stderr to avoid cp1252 emoji crashes on Windows
+    stderr_stream = open(sys.stderr.fileno(), mode="w", encoding="utf-8",
+                         closefd=False, errors="replace")
+    stderr_handler = logging.StreamHandler(stderr_stream)
     stderr_handler.setFormatter(fmt)
 
     root = logging.getLogger()

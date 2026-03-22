@@ -373,6 +373,28 @@
     </div>
 </section>
 
+<section style="padding: 0 0 60px;">
+    <div class="container">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 32px; max-width: 650px; margin: 0 auto;">
+            <h3 style="font-size: 1.2rem; margin-bottom: 16px; color: var(--accent2);">Three ways to run Vex</h3>
+            <div class="code-block">
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <span class="comment"># Interactive CLI</span><br>
+                <span class="cmd">vex</span><br><br>
+                <span class="comment"># Telegram bot</span><br>
+                <span class="cmd">vex --telegram</span><br><br>
+                <span class="comment"># Background service (starts at boot, runs 24/7)</span><br>
+                <span class="cmd">vex daemon install && vex daemon start</span>
+            </div>
+            <p class="note">
+                <strong>Daemon mode</strong> runs Vex as a system service &mdash; no terminal needed.
+                Works on macOS (launchd), Linux (systemd), and Windows (NSSM/scheduled task).
+                Update anytime with <code>vex update</code>.
+            </p>
+        </div>
+    </div>
+</section>
+
 <section id="features" class="features">
     <div class="container">
         <h2>What Vex Can Do</h2>
